@@ -7,6 +7,7 @@ from .core.theme import RuleError
 from .themes.mafia.commands import authorize, manifest, parse_options
 from .themes.mafia.membership import MafiaMembership
 from .themes.mafia.rules import DISTRICTS, FAMILIES, MafiaSeason
+from .themes.mafia.help import render_help
 
 
 def message(text, **extra):
@@ -89,18 +90,7 @@ class Application:
         if name == "start":
             return message(await self.flavour.render("welcome"))
         if name == "help":
-            return message(
-                "Сторона определяется Discord-ролью.\n"
-                "/profile — кошелёк; /work — подработка (3 раза в неделю); /donate — касса.\n"
-                "/operation_start → /operation_join → через 24 ч /operation_resolve.\n"
-                "/investigate → /raid; семье /raid_response либо /bribe_offer.\n"
-                "/inbox → /bribe_decide.\n"
-                "/district_bid → через 48 ч /district_resolve; /district_income — доход.\n"
-                "Общие траты и передачи районов — полномочия главы. "
-                "Недельные лимиты сбрасываются в понедельник 00:00 UTC.\n"
-                "Организатор: /family_role, /leader_set, /reward, /district_open, "
-                "/news_channel, /flavour_edit. Полные правила — в docs/commands.md репозитория."
-            )
+            return message(render_help(args["topic"]))
         if name in {"profile", "inbox"}:
             await self.act(payload, "sync", {})
             state = await self.state()

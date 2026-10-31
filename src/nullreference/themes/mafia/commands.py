@@ -2,6 +2,7 @@
 
 from nullreference.core.theme import RuleError
 from .rules import FAMILIES, DISTRICTS
+from .help import TOPICS
 
 
 def option(name, description, kind=3, required=True, choices=None, default=None, **limits):
@@ -37,7 +38,11 @@ def command(name, description, *options, admin=False):
 
 COMMANDS = [
     command("start", "Знакомство с городом"),
-    command("help", "Команды и основные правила"),
+    command(
+        "help",
+        "Подробная справка, права, лимиты и примеры",
+        option("topic", "Раздел справки", required=False, choices=TOPICS, default="overview"),
+    ),
     command("profile", "Личный кошелёк, влияние и касса семьи"),
     command("leaderboard", "Рейтинг сторон по заработанному влиянию"),
     command("status", "Карта районов и открытые операции"),

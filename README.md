@@ -1,219 +1,315 @@
-# Nullreference Discord bot — Cloudflare Workers + Neon
+# Nullreference Discord Bot
 
-Python-бот для небольшого Discord-сервера. Все игровые правила сохранены в
-`src/nullreference/themes/mafia/`. Транспорт — Discord HTTP Interactions,
-хранилище — Neon PostgreSQL через HTTPS. Постоянный процесс, Discord Gateway,
-Docker, голосовые каналы и привилегированные intents не нужны.
+A reusable Python community bot for **Cloudflare Workers** and **Neon PostgreSQL**.
+The current season turns a small Discord server into a city contested by five
+crime families and a police department. Players participate asynchronously through
+slash commands; simultaneous attendance and voice channels are not required.
 
-## Настройка уже подключённого Worker
+Game rules live in `src/nullreference/themes/mafia/`. Infrastructure is separate
+so the bot can support a different theme next year. In-game messages and help are
+currently in Russian. This README describes setup and operation in English.
 
-Имя Worker: **discord-bot-nullreference**. В Workers Builds укажите:
+## Features
 
-| Поле | Значение |
+- Existing Discord roles determine family or police membership.
+- Personal wallets, shared treasuries, spendable influence, and lifetime rankings.
+- Limited weekly work, organizer-approved tasks, and asynchronous family operations.
+- Investigations, raids, private bribes, corruption checks, and officer suspensions.
+- District contests, ownership transfers, and weekly district income.
+- Public game announcements and a persistent news delivery queue.
+- Editable flavour text stored in Neon, with no code changes or deployment needed.
+- Detailed Markdown help with command examples, sample responses, permissions,
+  and limits: `/help`, then choose a `topic`.
+
+A cosmetic shop, automatic assignment of Discord roles, and automatic assessment
+of creative submissions are not implemented. Organizers publish tasks themselves
+and award completed tasks with `/reward`.
+
+## Cloudflare deployment
+
+Connect the repository to the Worker named **`discord-bot-nullreference`**.
+The name must match `wrangler.jsonc`.
+
+| Setting | Value |
 | --- | --- |
-| Root directory | корень репозитория (`/`) |
+| Root directory | Repository root (`/`) |
 | Build command | `npm run build` |
 | Deploy command | `npm run deploy` |
 
-Workers Builds устанавливает npm-зависимости по `package-lock.json` автоматически.
-В build image нужны Node.js 22+ и Python 3.12+; при необходимости задайте
-`NODE_VERSION=22` и `PYTHON_VERSION=3.12` в build variables.
+Workers Builds installs npm dependencies using `package-lock.json`. The build
+environment needs **Node.js 22+** and **Python 3.12+**. If required, set
+`NODE_VERSION=22` and `PYTHON_VERSION=3.12` in build variables.
 
-Build устанавливает закреплённый uv, восстанавливает инструменты из `uv.lock`,
-генерирует встроенный каталог текстов и проверяет manifest команд. Затем pure-Python
-`workers-runtime-sdk` явно устанавливается в `python_modules/`, без выбора
-промежуточного Pyodide-окружения. Секреты для этой фазы не нужны. Версии SDK и
-Wrangler закреплены. Runtime не устанавливает discord.py, psycopg или другие
-нативные библиотеки.
+### Runtime settings
 
-Deploy выполняет три действия в таком порядке:
+Add these under **Worker > Settings > Variables and Secrets**:
 
-1. Собирает upload bundle и проверяет по SHA-256 присутствие всех 22 файлов SDK,
-   затем применяет SQL-миграции в Neon, в транзакции с advisory lock.
-2. Публикует проверенный Python Worker через Wrangler, без повторной переустановки SDK.
-3. Регистрирует slash-команды только на настроенном Discord-сервере.
-
-При ошибке миграций публикация не начинается. Если регистрация команд не прошла
-после публикации, повторите deploy: миграции идемпотентны, manifest заменяется целиком.
-Публичных `/migrate` и `/register` endpoint нет.
-
-**Важно:** этот deploy command предназначен для production-ветки. Не используйте
-его для preview/PR с доступом к production secrets: он изменяет базу и список команд.
-Для preview после `npm run build` используйте `npx --no-install wrangler versions upload`, без production
-DB/Discord secrets. GitHub CI проверяет код и dry-run без production-доступа.
-
-## Где задать секреты
-
-Это **две отдельные группы настроек** в Cloudflare. GitHub Secrets и runtime
-secrets сами по себе не становятся build variables.
-
-### Worker → Settings → Variables and Secrets (runtime)
-
-| Имя | Что указать |
+| Variable | Purpose |
 | --- | --- |
-| `DISCORD_TOKEN` | Bot token; тип Secret |
-| `DATABASE_URL` | Полный PostgreSQL URI из Neon Connect; тип Secret |
-| `DISCORD_PUBLIC_KEY` | Public Key из General Information Discord-приложения |
-| `DISCORD_APPLICATION_ID` | Application ID из General Information |
-| `DISCORD_GUILD_ID` | ID единственного разрешённого сервера |
-| `SEASON_ID` | Необязательно; по умолчанию `mafia-2027` |
+| `DISCORD_TOKEN` | Bot token; store as a Secret |
+| `DATABASE_URL` | Complete Neon PostgreSQL connection URI; store as a Secret |
+| `DISCORD_PUBLIC_KEY` | Application public key from Discord General Information |
+| `DISCORD_APPLICATION_ID` | Discord application ID |
+| `DISCORD_GUILD_ID` | The only Discord server this Worker may serve |
+| `SEASON_ID` | Optional; defaults to `mafia-2027` |
 
-ID и public key можно также сохранить как Secret, если не хотите показывать их
-в настройках обычных переменных. Значения не записываются в репозиторий.
-`keep_vars: true` сохраняет настроенные в панели переменные при деплое.
+IDs and the public key can also be stored as Secrets. Their actual values do not
+belong in the public repository. `keep_vars: true` preserves dashboard-configured
+variables during deployment.
 
-### Worker → Settings → Build → Variables and secrets
+### Build settings
 
-Для production deploy добавьте:
+Separately add these under **Worker > Settings > Build > Variables and secrets**:
 
-- `DATABASE_URL` — build secret для миграций (роль с правами DDL).
-- `DISCORD_TOKEN` — build secret для регистрации команд.
-- `DISCORD_APPLICATION_ID` и `DISCORD_GUILD_ID` — build variables/secrets.
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Build Secret for database migrations; requires DDL permissions |
+| `DISCORD_TOKEN` | Build Secret for slash-command registration |
+| `DISCORD_APPLICATION_ID` | Application ID used during registration |
+| `DISCORD_GUILD_ID` | Target server ID used during registration |
 
-Cloudflare credentials для публикации обычно предоставляет сам Workers Builds.
-Для ручного CLI-деплоя нужны `wrangler login` либо отдельный Cloudflare API token
-в окружении. Не вставляйте секреты в команды, исходники или `wrangler.jsonc`.
+**Build and runtime variables are separate.** Runtime secrets and GitHub Secrets
+are not automatically available to Workers Builds. The build phase itself is
+secret-free, but the deploy command needs the four settings above.
 
-Можно использовать отдельные PostgreSQL-роли: DDL-роль для build migrations,
-runtime-роль с SELECT/INSERT/UPDATE/DELETE и правами на нужные sequences. Если
-используется одна роль Neon, у неё должны быть права и для миграций, и для работы.
-URI поддерживает `sslmode=require` и `channel_binding=require`; runtime передаёт
-его Neon SQL-over-HTTP по TLS, build использует libpq/psycopg.
+Workers Builds normally supplies its own deployment credentials. For manual CLI
+deployment, use `npx wrangler login` or a Cloudflare API token in the environment.
+Do not place tokens in command arguments, source files, or `wrangler.jsonc`.
 
-## После первого успешного деплоя
+### Build and deployment sequence
 
-1. В Discord Developer Portal → General Information → **Interactions Endpoint URL**
-   укажите `https://<ваш-worker>.<ваш-subdomain>.workers.dev/interactions`.
-   Скопируйте реальный домен из Cloudflare, не используйте пример буквально.
-2. Discord проверит подпись и PING; Worker отвечает без обращения к Neon.
-3. Установите Discord-приложение на сервер со scopes `bot` и `applications.commands`.
-   Дайте View Channel и Send Messages в канале новостей. Administrator и Manage Roles не нужны.
-4. Выполните `/family_role family:cartel role:@Картель`, повторите для остальных
-   пяти сторон; `/family_roles` покажет настройки.
-5. Настройте `/news_channel`, затем проверьте `/profile` и `/work`.
-6. При необходимости назначьте глав через `/leader_set`.
+`npm run build`:
 
-Бот может отображаться offline в списке участников: Gateway-соединения нет,
-это не мешает HTTP slash-командам и отправке новостей через REST API.
+1. Installs the pinned uv version and restores tools from `uv.lock`.
+2. Validates the command manifest and generates the embedded default text catalog.
+3. Installs the pinned, universal `workers-runtime-sdk` wheel directly into
+   `python_modules/`, avoiding native/Pyodide environment path inference.
+4. Checks required SDK files and creates their SHA-256 manifest.
 
-`GET /health` — проверка работы HTTP runtime (не проверяет Neon и Discord).
-`/setup` доступна организатору: проверяет наличие схемы и повторно регистрирует команды.
+`npm run deploy`:
 
-## Игровые возможности и роли
+1. Creates a dry-run upload bundle and checks all SDK files against that manifest.
+2. Applies pending SQL migrations in a transaction with an advisory lock.
+3. Publishes the verified Worker using Wrangler.
+4. Registers the slash-command manifest on the configured Discord server.
 
-Реализованы личные деньги, кассы сторон, влияние и рейтинг; подработки и ручные
-награды за задания; операции, расследования, облавы, взятки и служебные проверки;
-борьба за Банк, Казино и Доки, передача и доход районов; публикация новостей.
+A migration failure stops publication. If registration fails after publication,
+retry deployment; migrations are idempotent and registration replaces the manifest.
+The SDK and Wrangler versions are pinned. The deployed Worker does not include
+native database drivers, `discord.py`, or a persistent Gateway connection.
 
-Сторона определяется ровно одной настроенной Discord-ролью, по ID. `/join` нет.
-При игровой команде бот запрашивает актуальные роли автора через Discord REST API.
-Перед выплатой операции проверяются также роли всех записанных участников.
-Смена роли сохраняет кошелёк, личные лимиты и коррупционные ограничения, снимает
-старое назначение главы и исключает из открытых дел старой стороны.
+Successful packaging prints:
 
-Первый синхронизированный участник стороны становится главой, если глава не назначен.
-Общие траты, запуск дел, ответ на облаву и передачи районов требуют главы.
-Права администратора Discord не заменяют полномочия главы в игровых командах.
+```text
+Upload bundle verified: all 22 Python SDK files are included.
+```
 
-Новые ограничения Workers: **не более 12 участников операции**, чтобы проверка
-ролей и записи в Neon укладывались в лимит внешних запросов. Для маленького
-сервера это не меняет обычный игровой цикл.
+**Production branches only:** the deploy command changes the database and Discord
+command manifest. Do not give untrusted pull-request builds production secrets.
+For a preview, run `npm run build`, then
+`npx --no-install wrangler versions upload`, without production database/Discord
+credentials. GitHub CI uses a disposable database and a dry-run bundle.
 
-Все права и лимиты описаны в [docs/commands.md](docs/commands.md).
-Магазина косметики, автоматической выдачи Discord-ролей и автопроверки творчества пока нет.
+## Neon configuration
 
-## Flavour без деплоя
+In Neon, open **Connect**, select the database and role, and copy the complete
+PostgreSQL URI. For the initial setup, use the direct connection endpoint.
 
-`/flavour_edit key:work` показывает текущий текст с кнопкой. Кнопка открывает форму;
-это позволяет быстро отвечать на interaction даже при холодном Neon. Открывать
-и сохранять форму может только её автор с Manage Server. Изменения сразу попадают
-в Neon; следующие сообщения используют новый текст без кэша и перезапуска.
+```text
+postgresql://USER:PASSWORD@ep-example.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+```
 
-- `/flavour_reset` восстанавливает текст из стандартного каталога.
-- `/flavour_export` отправляет JSON-файл приватным ответом.
-- `$amount`, `$balance` и другие исходные переменные нужно сохранить.
-- История редакций хранится в `flavour_history`.
-- Уже опубликованные сообщения не переписываются.
-- Упоминания в сообщениях бота не отправляют пинги.
+Save only the URI as `DATABASE_URL`: no `psql` command, `DATABASE_URL=` prefix,
+or surrounding quotes in the Cloudflare value field. Preserve the TLS parameters
+provided by Neon. Runtime uses Neon's SQL-over-HTTPS API; migration scripts use
+psycopg/libpq in the build environment.
 
-Источник стандартных текстов — `flavour.ru.json`. `scripts/build.py` генерирует
-из него `texts.py` для включения в Worker. Описания команд, ошибки правил и
-числовой баланс остаются в Python.
+Separate roles are supported: use a DDL-capable migration role for build secrets
+and a runtime role with the required table and sequence permissions. A shared
+role needs permissions for both migration and normal application operations.
 
-## Как работает serverless
+## Discord configuration
 
-Worker проверяет Ed25519-подпись исходного тела, timestamp (окно 5 минут),
-Application ID и разрешённый Guild ID. Административные команды проверяют
-Manage Server/Administrator на сервере, а игровые действия — роль и полномочия главы.
+1. Create an application in the [Discord Developer Portal](https://discord.com/developers/applications).
+2. Copy **Application ID** and **Public Key** from **General Information**.
+3. Obtain the **Bot Token** from **Bot**. It is different from the OAuth2 Client Secret.
+4. Enable Developer Mode in Discord, then right-click the server and copy its ID.
+5. Enable **Guild Install** and install the application with `bot` and
+   `applications.commands` scopes.
+6. Allow **View Channel**, **Send Messages**, and **Attach Files** in the relevant
+   channels. Administrator, Manage Roles, and privileged intents are not required.
+7. After deployment, set **General Information > Interactions Endpoint URL** to:
 
-На команду немедленно возвращается deferred response. Общие результаты видны в канале; личные балансы, конверты, расследования и административные ответы приватны. Политика видимости находится в src/nullreference/visibility.py. Работа
-продолжается через `waitUntil`: сначала запрос сохраняется в `interaction_jobs`,
-потом выполняется и редактируется исходный ответ. Повторная доставка не создаёт
-новую награду: interaction ID служит ключом идемпотентности. Неудавшаяся доставка
-ответа может повториться из сохранённого задания (до 3 попыток, срок 14 минут).
+   ```text
+   https://<your-worker>.<your-subdomain>.workers.dev/interactions
+   ```
 
-`waitUntil` ограничен жизненным циклом платформы: если процесс оборвётся до первой
-успешной записи задания в Neon, автоматического восстановления этого запроса нет.
-При временной недоступности сервиса проверьте `/profile`/`/status` перед повтором
-расходующей команды. После фиксации экономические действия защищены от повторов
-одного interaction ID; новая команда пользователя имеет новый ID.
+   Use the actual hostname from Cloudflare. Discord validates the signature and
+   PING response; this check does not access Neon.
+8. Run `/start`, configure all six sides with `/family_role`, select the news
+   channel with `/news_channel`, and test `/profile` and `/work`.
 
-Состояние небольшого сервера хранится одним JSONB-документом на сезон. Вместо
-постоянной SQL-сессии используется optimistic concurrency: UPDATE с ожидаемой
-версией документа. Снимок, событие и новость фиксируются одним SQL statement;
-конкурирующий запрос перечитывает состояние. Ошибки правил не записывают расходы.
+For a **private bot**, set **Installation > Install Link** to **None** and keep
+**Public Bot** disabled. Generate an invitation through **OAuth2 > URL Generator**
+using the same scopes and permissions. Public bot status is not necessary for
+installation by the application's owner.
 
-Cron Trigger каждые 10 минут возвращает просроченные взятки, освобождает районы,
-повторяет сохранённые ответы и доставляет очередь новостей. Сроки также проверяются
-в игровых действиях. Фоновое применение может задержаться на интервал cron.
-Окончание операций и розыгрышей по-прежнему вызывается командами явно.
-Доставка публичных новостей — at-least-once: сбой после отправки, но до отметки
-в базе может привести к дублю. Блокировки-аренды предотвращают обычную параллельную
-отправку одной новости двумя вызовами.
+The bot may appear **offline** in the member list because HTTP interactions do
+not maintain Gateway presence. Commands and REST announcements still work.
+`GET /health` checks the HTTP runtime only, not database or Discord connectivity.
+The organizer-only `/setup` command checks schema access and registers commands
+again; it does not apply migrations.
 
-Временные interaction tokens и payload хранятся **только в закрытой Neon DB**;
-после ответа очищаются, при истечении срока очищаются cron. Это sensitive data:
-ограничьте доступ к базе/бэкапам. Токены и тела запросов не логируются кодом,
-observability по умолчанию выключена.
+## Membership and permissions
 
-## Миграции
+Bind an existing role to a side, for example:
 
-Версии `001` и `002` сохранены; `003_cloudflare.sql` добавляет версию состояния,
-очередь interactions и аренду новостей. Существующие игровые данные не удаляются.
-Не запускайте старую Gateway-версию одновременно с новой: она не обновляет version.
+```text
+/family_role family:cartel role:@Cartel
+/family_roles
+/leader_set member:@Player
+```
 
-Миграции применяет deploy, не HTTP-запросы и не cron. Выполненные версии отмечаются
-в `schema_migrations`; новые файлы добавляются по порядку. Контрольные суммы
-защищают от последующего редактирования применённых файлов. Для старых миграций
-без checksum первая новая процедура заполняет её текущим содержимым.
+Select the matching options in Discord; the displayed side labels are Russian.
+Role names can be anything because bindings use role IDs. Omit `role` from
+`/family_role` to remove a binding. A role can represent only one side per season,
+and the everyone role cannot be used.
 
-## Локальная разработка
+Players need exactly **one** configured family or police role. There is no `/join`.
+Current membership is fetched through Discord REST for game actions, including
+offline participants before an operation payout. A role change preserves the
+personal wallet, work limits, and corruption record, but removes old leadership
+and participation in unfinished operations for the previous side.
 
-Нужны Node.js 22+ и Python 3.12+. SDK устанавливается из универсального wheel,
-поэтому отдельное нативное/Pyodide-окружение для сборки не требуется.
+The first synchronized member becomes leader if the side has none. Organizers
+can reassign leadership with `/leader_set`. Shared spending, operation creation,
+raid responses, and district transfers require leadership. Discord administrator
+permissions do not override this game rule. An operation supports up to **12
+participants** to stay within the Worker's external-request budget.
+
+## Player help
+
+`/help` shows the introduction and a quick-start path. Its optional `topic`
+parameter opens a detailed Markdown page:
+
+| Topic | Contents |
+| --- | --- |
+| `overview` | Getting started, shared resources, rankings, and navigation |
+| `money` | Wallets, work, donations, and personal offers |
+| `operations` | Creating, joining, and resolving a family operation |
+| `police` | Investigations, clues, raids, and family responses |
+| `bribes` | Reserved payments, officer decisions, and corruption penalties |
+| `districts` | Contest bids, ownership, transfers, and income |
+| `admin` | Roles, leaders, rewards, news, and setup |
+| `texts` | Editing, resetting, and exporting flavour text |
+
+For example: `/help topic:operations`. Pages explain **who may run each command**,
+**what it costs**, **how often it is available**, and show **example responses**.
+Examples are illustrative; live IDs, amounts, and customized messages may differ.
+Each page fits Discord's message limit and uses headings, lists, bold text,
+inline command examples, block quotes, and fenced sample output.
+
+The [full command reference](docs/commands.md) is in Russian. The in-game guide
+is also available as [Markdown](docs/player-guide.md), generated from the same
+topic pages. Daily limits reset at **00:00 UTC**; ISO weeks begin on **Monday
+at 00:00 UTC**.
+
+Shared responses such as `/start`, `/help`, rankings, operation results, and
+district contest results are public in the channel. Wallets, work, donations,
+private offers, investigations, raid decisions, and administrative responses
+remain ephemeral. See `src/nullreference/visibility.py` for the exact policy.
+
+## Editing flavour text without deployment
+
+`/flavour_edit key:work` displays the current template and an **Edit** button.
+The button opens a private modal for its author, who must still have Manage Server.
+Saving writes an override to Neon; subsequent messages use it immediately.
+
+- `/flavour_reset` restores the default for a key.
+- `/flavour_export` returns the current catalog as a private JSON attachment.
+- Preserve the template's existing `$amount`, `$balance`, and other placeholders.
+- Edits are recorded with the author and timestamp in `flavour_history`.
+- Existing messages are not rewritten, and bot messages do not send mention pings.
+
+Defaults live in `flavour.ru.json`; `scripts/build.py` generates `texts.py` for the
+Worker bundle. Command descriptions, help pages, rule errors, and numeric balance
+remain in Python and require a deployment to change.
+
+## Runtime architecture and delivery guarantees
+
+The Worker verifies the original request body's Ed25519 signature, a five-minute
+timestamp window, Application ID, and allowed Guild ID. Administrative actions
+require Manage Server or Administrator; game actions additionally enforce the
+current side and leadership rules.
+
+Commands receive an immediate deferred acknowledgement with the visibility
+chosen before processing. `waitUntil` continues work: the request is persisted
+in `interaction_jobs`, executed, and delivered by editing the original response.
+Discord interaction IDs provide idempotency for economic actions. Persisted
+response delivery can be retried up to three times within a fourteen-minute window.
+
+If the Worker stops before the first successful job write, that request cannot
+be recovered automatically. After a transient failure, check `/profile` or
+`/status` before repeating a spending command: a new command has a new interaction ID.
+
+Game state is a JSONB document per guild and season. Optimistic concurrency uses
+an expected document version; the snapshot update, event, and news insertion
+commit in one SQL statement. Competing writers reload and retry. Failed rule
+checks do not persist partial spending.
+
+A Cron Trigger runs every **ten minutes** to refund expired bribes, expire
+district ownership, retry saved responses, and deliver news. Game actions also
+check deadlines. Operations and district contests are still resolved explicitly
+with their commands. Background expiry may lag by one cron interval.
+
+News delivery is **at least once**: a crash after sending but before marking a row
+as sent can produce a duplicate. Leases prevent ordinary simultaneous delivery.
+Temporary interaction tokens and payloads exist only in the private Neon database;
+they are cleared after delivery or by expiry maintenance. Treat database access
+and backups as sensitive. Application code does not log tokens or raw payloads,
+and observability is disabled by default.
+
+## Migrations
+
+`001` and `002` retain the original schema. `003_cloudflare.sql` adds state
+versions, interaction jobs, and news leases. Existing game data is preserved.
+Do not run the old Gateway implementation concurrently: it does not update versions.
+
+Deployment applies migrations, not HTTP handlers or cron. Applied versions are
+stored in `schema_migrations`; add new files in order rather than editing applied
+ones. Checksums detect later edits. Legacy rows without a checksum adopt the
+current file checksum the first time the new migration runner handles them.
+
+## Local development
+
+Install Node.js 22+ and Python 3.12+, then run:
 
 ```text
 npm ci
 npm run build
 ```
 
-Скопируйте `.dev.vars.example` в `.dev.vars` и заполните **локально**.
+Copy `.dev.vars.example` to `.dev.vars` and fill it in locally. Never commit it.
 
 ```text
 npm run dev
 ```
 
-Ручные миграции/регистрация с локальным файлом переменных:
+To run migrations or register commands using local settings:
 
 ```text
 python -m uv run --env-file .dev.vars python scripts/migrate.py
 python -m uv run --env-file .dev.vars python scripts/register_commands.py
 ```
 
-`npm run deploy` читает build secrets из настоящего окружения. Для ручного деплоя
-с локальным `.dev.vars` используйте `python -m uv run --env-file .dev.vars python scripts/deploy.py`.
+`npm run deploy` reads the real process environment. For a manual deployment using
+the local file:
 
-## Проверки
+```text
+python -m uv run --env-file .dev.vars python scripts/deploy.py
+```
+
+## Verification
 
 ```text
 npm run check
@@ -221,39 +317,36 @@ npm test
 python -m uv run python scripts/prepare_worker.py --check-bundle
 ```
 
-Интеграционный тест требует `TEST_DATABASE_URL` одноразовой тестовой PostgreSQL,
-иначе пропускается. CI поднимает PostgreSQL 17 без production secrets и проверяет
-миграции, повторные команды, конкурентные списания, откат ошибки, динамические
-настройки, очередь ответов, повторы доставки и очистку токенов.
+The bundle check compares actual SDK files in `dist/worker/python_modules` with
+the build manifest. Having the SDK only in the development environment is not
+sufficient. Missing or modified files stop deployment before publication.
 
-Проверка упаковки сравнивает фактически включённые в `dist/worker/python_modules`
-файлы с manifest, созданным при build. Наличие SDK только в `.venv` недостаточно.
-При отсутствии `workers/__init__.py`, вспомогательных SDK-файлов или маркера
-`pyvenv.cfg` build/deploy завершится до публикации с понятной ошибкой. Это защищает
-от ошибки Cloudflare `ModuleNotFoundError: No module named 'workers'` из-за пустого
-vendor-каталога. В логах успешной проверки: `Upload bundle verified: all 22 Python SDK files are included.`
+Integration tests require `TEST_DATABASE_URL` pointing to a **disposable** PostgreSQL
+database; otherwise they are skipped. GitHub CI starts PostgreSQL 17 without
+production secrets and checks migrations, idempotency, concurrent spending, failed
+actions, live settings, response retries, and token cleanup.
 
-`scripts/smoke_worker.py` проверяет локальный workerd с публичным RFC 8032 тестовым
-ключом: health, подписанный PING, неверную подпись, просроченный timestamp,
-Application ID и запрет административной команды. Это тестовый ключ, не рабочий
-секрет; используйте только на локальном Worker с соответствующими фиктивными настройками.
+`scripts/smoke_worker.py` exercises local workerd using public RFC 8032 test
+credentials: health, signed PING, invalid signatures, expired timestamps,
+Application ID validation, and administrative checks. Use it only with the
+matching local test settings, never with production credentials.
 
-## Бесплатные лимиты
+## Free-plan limits
 
-Используются Workers Free и Neon, без Containers, платных Queues, R2 или VM.
-Лимиты запросов/CPU Workers и вычислений/хранения Neon действуют отдельно.
-Успешная сборка не гарантирует попадание всех сценариев в бесплатные runtime-лимиты:
-после подключения реальных сервисов нужно проверить выполнение команд и нагрузку.
-Cron раз в 10 минут уменьшает число пробуждений Neon по сравнению с постоянным ботом.
-Не включайте платные планы для этого деплоя автоматически.
+This setup uses Workers Free and Neon without Containers, paid Queues, R2, or VMs.
+Workers request/CPU limits and Neon compute/storage allowances apply separately.
+A successful build does not prove every production workload fits those limits;
+check actual command performance after connecting the real services. The
+ten-minute cron reduces database wakeups compared with a continuously running bot.
+Do not enable a paid plan automatically as part of deployment.
 
-## Следующая тема
+## Adding another season
 
-Общие HTTP-адаптеры, подписи, конфигурация и транзакционное хранилище находятся
-в `core/` и `security.py`. Игровые правила, каталог и registry команд — в
-`themes/mafia/`. Для следующего года добавьте другую тему, подключите её в
-`Application` и смените `SEASON_ID`; данные прежнего сезона останутся в базе.
+Shared HTTP adapters, configuration, signatures, and storage live in `core/` and
+`security.py`. Mafia rules, command definitions, text defaults, and player help
+live in `themes/mafia/`. Add another theme, select it in `Application`, and change
+`SEASON_ID`; previous seasons remain in the database.
 
-Официальные руководства: [Python Workers](https://developers.cloudflare.com/workers/languages/python/),
-[Discord HTTP interactions](https://docs.discord.com/developers/interactions/receiving-and-responding),
-[Neon serverless](https://neon.com/docs/serverless/serverless-driver).
+See [Python Workers](https://developers.cloudflare.com/workers/languages/python/),
+[Discord interactions](https://docs.discord.com/developers/interactions/receiving-and-responding),
+and [Neon serverless](https://neon.com/docs/serverless/serverless-driver) for platform documentation.

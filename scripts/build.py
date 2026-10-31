@@ -28,6 +28,18 @@ def main():
     (ROOT / "dist/commands.json").write_text(
         json.dumps(commands, ensure_ascii=False, indent=2), "utf-8"
     )
+    from nullreference.themes.mafia.help import TOPICS, render_help
+
+    for topic in TOPICS:
+        if len(render_help(topic).encode("utf-16-le")) // 2 > 2000:
+            raise ValueError("Help page exceeds Discord's message limit: " + topic)
+    (ROOT / "docs").mkdir(exist_ok=True)
+    (ROOT / "docs/player-guide.md").write_text(
+        "# Справка игрока\n\nСгенерировано из тех же страниц, которые показывает `/help`.\n\n"
+        + "\n\n---\n\n".join(render_help(topic) for topic in TOPICS)
+        + "\n",
+        "utf-8",
+    )
     print(f"Validated {len(commands)} commands and {len(values)} flavour templates.")
 
 
