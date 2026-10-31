@@ -1,0 +1,1 @@
+"""Year-independent Discord infrastructure."""

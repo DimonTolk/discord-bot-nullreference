@@ -1,0 +1,14 @@
+{
+  "name": "discord-bot-nullreference",
+  "private": true,
+  "version": "0.2.0",
+  "engines": {"node": ">=22"},
+  "scripts": {
+    "build": "python scripts/bootstrap.py",
+    "deploy": "python -m uv run python scripts/deploy.py",
+    "dev": "python -m uv run pywrangler dev",
+    "check": "python -m uv run ruff check .",
+    "test": "python -m uv run pytest -q"
+  },
+  "devDependencies": {"wrangler": "4.156.0"}
+}

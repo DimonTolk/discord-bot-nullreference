@@ -1,0 +1,21 @@
+[project]
+name = "nullreference-bot"
+version = "0.2.0"
+description = "Python Discord interactions on Cloudflare Workers with Neon PostgreSQL"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["uv==0.13.6", "workers-py==1.17.9", "workers-runtime-sdk==1.9.5", "pytest>=8,<10", "ruff>=0.11,<1", "psycopg[binary]>=3.2,<4", "cryptography>=44"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [".venv-workers", "python_modules", "dist", ".wrangler", "texts.py"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

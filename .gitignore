@@ -218,3 +218,26 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Private deployment configuration and local exports
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.dump
+*.backup
+/data/
+/backups/
+/exports/
+/local-config/
+flavour.json
+
+# Cloudflare Workers generated files and local secrets
+node_modules/
+.wrangler/
+.venv-workers/
+python_modules/
+.dev.vars*
+!.dev.vars.example

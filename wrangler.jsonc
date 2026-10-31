@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "discord-bot-nullreference",
+  "main": "src/entry.py",
+  "compatibility_date": "2026-10-23",
+  "compatibility_flags": ["python_workers"],
+  "workers_dev": true,
+  "keep_vars": true,
+  "triggers": {"crons": ["*/10 * * * *"]},
+  "observability": {"enabled": false}
+}
