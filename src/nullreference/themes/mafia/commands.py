@@ -145,6 +145,28 @@ COMMANDS = [
     command("flavour_reset", "Восстановить стандартный текст", KEY, admin=True),
     command("flavour_export", "Выгрузить тексты приватными сообщениями", admin=True),
     command("setup", "Проверить миграции и зарегистрировать команды", admin=True),
+    command(
+        "weekly_tasks",
+        "Расписание, пресеты и публикация задания недели",
+        option(
+            "action",
+            "Действие",
+            required=False,
+            default="status",
+            choices={
+                "status": "Расписание",
+                "enable": "Включить",
+                "disable": "Выключить",
+                "schedule": "Изменить время",
+                "presets": "Список пресетов",
+                "publish": "Опубликовать сейчас",
+            },
+        ),
+        option("day", "День: 1 — понедельник, 7 — воскресенье", 4, False, min_value=1, max_value=7),
+        option("hour", "Час по Минску", 4, False, min_value=0, max_value=23),
+        option("minute", "Минута", 4, False, min_value=0, max_value=59),
+        admin=True,
+    ),
 ]
 BY_NAME = {c["name"]: c for c in COMMANDS}
 ADMIN_COMMANDS = {c["name"] for c in COMMANDS if "default_member_permissions" in c}

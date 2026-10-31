@@ -14,6 +14,7 @@ currently in Russian. This README describes setup and operation in English.
 - Existing Discord roles determine family or police membership.
 - Personal wallets, shared treasuries, spendable influence, and lifetime rankings.
 - Limited weekly work, organizer-approved tasks, and asynchronous family operations.
+- A random weekly task, automatically posted on Mondays at 12:00 Europe/Minsk.
 - Investigations, raids, private bribes, corruption checks, and officer suspensions.
 - District contests, ownership transfers, and weekly district income.
 - Public game announcements and a persistent news delivery queue.
@@ -202,12 +203,63 @@ parameter opens a detailed Markdown page:
 | `districts` | Contest bids, ownership, transfers, and income |
 | `admin` | Roles, leaders, rewards, news, and setup |
 | `texts` | Editing, resetting, and exporting flavour text |
+| `weekly` | Weekly presets, participation, publication, and scheduling |
 
 For example: `/help topic:operations`. Pages explain **who may run each command**,
 **what it costs**, **how often it is available**, and show **example responses**.
 Examples are illustrative; live IDs, amounts, and customized messages may differ.
 Each page fits Discord's message limit and uses headings, lists, bold text,
 inline command examples, block quotes, and fenced sample output.
+
+## Automatic weekly tasks
+
+The bot posts one randomly selected task in the configured news channel every
+**Monday at 12:00 in Europe/Minsk**. The existing ten-minute cron checks the
+schedule, so delivery can be delayed by approximately one cron interval.
+
+Eight presets are seeded by migration `004_weekly_tasks.sql`: a meme, an alibi,
+an NPC dossier, city rumors, a business cover, a noir scene, a coded message, and
+a newspaper story. Each is asynchronous and can be completed by one person for
+their side. Police may participate too. Submissions are due at the end of Sunday
+in the configured timezone.
+
+The suggested reward is **3 influence and 20 treasury money per side**, after
+organizer approval. The announcement includes a `/reward` example with a unique
+weekly reference. Replace both the side and the reference suffix for each family;
+the existing reward ledger prevents payment of the same reference twice. Posting
+a task does not automatically award participation or completion.
+
+Organizer-only commands, with private responses:
+
+```text
+/weekly_tasks
+/weekly_tasks action:presets
+/weekly_tasks action:publish
+/weekly_tasks action:disable
+/weekly_tasks action:enable
+/weekly_tasks action:schedule day:1 hour:12 minute:0
+```
+
+Days use ISO numbering: Monday is 1, Sunday is 7. Schedule changes and re-enabling
+take effect at the next scheduled occurrence; they do not publish an overdue task
+immediately. Automatic posting is enabled by default after migration, but only
+starts at the next scheduled occurrence and requires `/news_channel` to be set.
+Manual `publish` can post the current week's task immediately, even when automatic
+posting is disabled; it cannot create a second assignment for that week.
+
+Selection and insertion into the news outbox are committed atomically. A unique
+guild/season/week key prevents duplicate task creation under concurrent cron
+runs or repeated manual publication. Consecutive repetition of a preset is
+avoided when another active preset exists. Missed historical weeks are not
+backfilled; an interruption after the scheduled time can catch up within the
+current week. News transport retains the general at-least-once delivery caveat.
+
+Presets live in the private Neon table `mafia_weekly_task_presets`. Edit `title`
+or `body`, insert a new row, or set `enabled=false` using the Neon SQL Editor;
+changes affect future selections without a deployment. Titles allow up to 80
+characters, bodies up to 900. This bot's database shares the preset catalog across
+its seasons. Already selected assignments keep their original text snapshot.
+The publication template itself is editable through `/flavour_edit key:weekly_task`.
 
 The [full command reference](docs/commands.md) is in Russian. The in-game guide
 is also available as [Markdown](docs/player-guide.md), generated from the same
@@ -273,6 +325,7 @@ and observability is disabled by default.
 
 `001` and `002` retain the original schema. `003_cloudflare.sql` adds state
 versions, interaction jobs, and news leases. Existing game data is preserved.
+`004_weekly_tasks.sql` adds the weekly schedule, preset catalog, and assignment history.
 Do not run the old Gateway implementation concurrently: it does not update versions.
 
 Deployment applies migrations, not HTTP handlers or cron. Applied versions are

@@ -8,6 +8,7 @@ from .themes.mafia.commands import authorize, manifest, parse_options
 from .themes.mafia.membership import MafiaMembership
 from .themes.mafia.rules import DISTRICTS, FAMILIES, MafiaSeason
 from .themes.mafia.help import render_help
+from .themes.mafia.weekly import MafiaWeeklyTasks
 
 
 def message(text, **extra):
@@ -22,6 +23,7 @@ class Application:
         self.db = Database(sql)
         self.flavour = FlavourCatalog(sql, self.guild, self.season)
         self.membership = MafiaMembership(sql, self.guild, self.season)
+        self.weekly = MafiaWeeklyTasks(sql, self.guild, self.season)
 
     async def state(self):
         return await self.db.snapshot(self.guild, self.season, self.theme)
@@ -87,6 +89,50 @@ class Application:
         name = payload["data"]["name"]
         authorize(payload, name)
         args = parse_options(payload, name)
+        if name == "weekly_tasks":
+            action = args["action"]
+            if action != "schedule" and any(
+                args.get(key) is not None for key in ("day", "hour", "minute")
+            ):
+                raise RuleError("Параметры времени используются только с action:schedule")
+            if action == "presets":
+                rows = await self.weekly.presets()
+                return message(
+                    "## Пресеты еженедельных заданий\n"
+                    + "\n".join(
+                        f"• `{p['key']}` — {p['title']}"
+                        + (" (отключён)" if not p["enabled"] else "")
+                        for p in rows
+                    )
+                )
+            if action == "publish":
+                await self.weekly.settings()
+                rows = await self.weekly.publish(force=True)
+                return message(
+                    "Задание добавлено в очередь новостей."
+                    if rows
+                    else "Задание этой недели уже выбрано, нет активных пресетов или не подключён канал новостей."
+                )
+            settings = (
+                await self.weekly.settings()
+                if action == "status"
+                else await self.weekly.configure(action, args["day"], args["hour"], args["minute"])
+            )
+            days = (
+                "понедельник",
+                "вторник",
+                "среда",
+                "четверг",
+                "пятница",
+                "суббота",
+                "воскресенье",
+            )
+            return message(
+                f"## Еженедельные задания\nАвтопубликация: {'включена' if settings['weekly_tasks_enabled'] else 'выключена'}\n"
+                f"Расписание: {days[settings['weekly_tasks_day'] - 1]}, {settings['weekly_tasks_hour']:02d}:{settings['weekly_tasks_minute']:02d} "
+                f"({settings['weekly_tasks_timezone']}).\nКанал: <#{settings['news_channel_id']}>\n"
+                "Проверка раз в 10 минут. Новое расписание действует со следующего наступления выбранного времени."
+            )
         if name == "start":
             return message(await self.flavour.render("welcome"))
         if name == "help":
@@ -324,4 +370,5 @@ class Application:
             "WHERE guild_id=$1 AND season_id=$2 AND status IN ('pending','running') AND expires_at<=now()",
             [self.guild, self.season],
         )
+        await self.weekly.publish()
         await self.deliver_news(limit=3)

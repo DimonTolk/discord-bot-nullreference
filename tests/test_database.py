@@ -19,6 +19,7 @@ from nullreference.core.flavour import FlavourCatalog
 from nullreference.core.theme import RuleError
 from nullreference.themes.mafia.membership import MafiaMembership
 from nullreference.themes.mafia.rules import MafiaSeason
+from nullreference.themes.mafia.weekly import MafiaWeeklyTasks
 
 ROOT = Path(__file__).resolve().parents[1]
 pytestmark = pytest.mark.skipif(
@@ -148,6 +149,67 @@ def test_migrations_optimistic_concurrency_replay_rollback_and_live_settings():
                 await sql.query(
                     f"DELETE FROM {table} WHERE guild_id=$1 AND season_id=$2", [guild, season]
                 )
+
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    asyncio.run(scenario())
+
+
+def test_weekly_schedule_minsk_random_selection_and_duplicate_prevention():
+    async def scenario():
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from migrate import migrate
+
+        url = os.environ["TEST_DATABASE_URL"]
+        await asyncio.to_thread(migrate, url)
+        sql = PostgresSQL(url)
+        guild, season = "998", f"weekly-test-{uuid.uuid4()}"
+        tasks = MafiaWeeklyTasks(sql, guild, season)
+        try:
+            await sql.query(
+                "INSERT INTO guild_settings(guild_id,news_channel_id,weekly_tasks_enabled_since) "
+                "VALUES ($1,999,'2026-10-30T00:00:00Z') ON CONFLICT(guild_id) DO UPDATE "
+                "SET news_channel_id=999,weekly_tasks_enabled_since='2026-10-30T00:00:00Z',weekly_tasks_enabled=true",
+                [guild],
+            )
+            assert (await tasks.settings())["weekly_tasks_timezone"] == "Europe/Minsk"
+            assert len(await tasks.presets()) >= 8
+            assert not await tasks.publish(now="2026-11-02T08:59:00Z")
+            results = await asyncio.gather(
+                *(tasks.publish(now="2026-11-02T09:00:00Z") for _ in range(4))
+            )
+            selected = [row for rows in results for row in rows]
+            assert len(selected) == 1
+            assert selected[0]["week"] == "2026-W45"
+            news = await sql.query(
+                "SELECT payload FROM news_outbox WHERE guild_id=$1 AND season_id=$2",
+                [guild, season],
+            )
+            assert len(news) == 1
+            assert news[0]["payload"]["reference"] == "weekly-2026-W45"
+            rendered = await FlavourCatalog(sql, guild, season).render(
+                "weekly_task", **news[0]["payload"]
+            )
+            assert len(rendered.encode("utf-16-le")) // 2 <= 2000
+            following = await tasks.publish(now="2026-11-09T09:00:00Z")
+            assert following[0]["preset_key"] != selected[0]["preset_key"]
+            await tasks.configure("disable")
+            assert not await tasks.publish(now="2026-11-16T09:00:00Z")
+            assert await tasks.publish(force=True, now="2026-11-16T09:00:00Z")
+            assert not await tasks.publish(force=True, now="2026-11-16T09:00:00Z")
+            await sql.query(
+                "UPDATE guild_settings SET weekly_tasks_enabled=true, "
+                "weekly_tasks_enabled_since='2026-11-24T00:00:00Z' WHERE guild_id=$1",
+                [guild],
+            )
+            assert not await tasks.publish(now="2026-11-24T09:00:00Z")
+            assert await tasks.publish(now="2026-11-30T09:00:00Z")
+        finally:
+            for table in ("weekly_task_assignments", "news_outbox"):
+                await sql.query(
+                    f"DELETE FROM {table} WHERE guild_id=$1 AND season_id=$2", [guild, season]
+                )
+            await sql.query("DELETE FROM guild_settings WHERE guild_id=$1", [guild])
 
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
