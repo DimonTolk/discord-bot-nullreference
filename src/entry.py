@@ -11,6 +11,7 @@ from nullreference.core.theme import RuleError
 from nullreference.security import modal, signature_parts
 from nullreference.themes.mafia.commands import authorize
 from nullreference.themes.mafia.texts import DEFAULTS
+from nullreference.visibility import deferred_response
 
 
 def response(data, status=200):
@@ -92,7 +93,7 @@ class Default(WorkerEntrypoint):
                 return response({"error": "unsupported interaction"}, 400)
             app = self.application()
             wait_until(asyncio.ensure_future(self.background(app, payload)))
-            return response({"type": 5, "data": {"flags": 64}})
+            return response(deferred_response(payload))
         except (RuleError, ValueError, KeyError):
             return response(
                 {
