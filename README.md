@@ -20,15 +20,17 @@ Workers Builds устанавливает npm-зависимости по `packa
 `NODE_VERSION=22` и `PYTHON_VERSION=3.12` в build variables.
 
 Build устанавливает закреплённый uv, восстанавливает инструменты из `uv.lock`,
-генерирует встроенный каталог текстов и проверяет manifest команд. Секреты для
-этой фазы не нужны. Python Workers собирает официальный `pywrangler`; его версия
-и Wrangler закреплены. Runtime не устанавливает discord.py, psycopg или другие
+генерирует встроенный каталог текстов и проверяет manifest команд. Затем pure-Python
+`workers-runtime-sdk` явно устанавливается в `python_modules/`, без выбора
+промежуточного Pyodide-окружения. Секреты для этой фазы не нужны. Версии SDK и
+Wrangler закреплены. Runtime не устанавливает discord.py, psycopg или другие
 нативные библиотеки.
 
 Deploy выполняет три действия в таком порядке:
 
-1. Применяет SQL-миграции в Neon, в транзакции с advisory lock.
-2. Публикует Python Worker через `pywrangler deploy`.
+1. Собирает upload bundle и проверяет по SHA-256 присутствие всех 22 файлов SDK,
+   затем применяет SQL-миграции в Neon, в транзакции с advisory lock.
+2. Публикует проверенный Python Worker через Wrangler, без повторной переустановки SDK.
 3. Регистрирует slash-команды только на настроенном Discord-сервере.
 
 При ошибке миграций публикация не начинается. Если регистрация команд не прошла
@@ -37,7 +39,7 @@ Deploy выполняет три действия в таком порядке:
 
 **Важно:** этот deploy command предназначен для production-ветки. Не используйте
 его для preview/PR с доступом к production secrets: он изменяет базу и список команд.
-Для preview используйте только `uv run pywrangler versions upload`, без production
+Для preview после `npm run build` используйте `npx --no-install wrangler versions upload`, без production
 DB/Discord secrets. GitHub CI проверяет код и dry-run без production-доступа.
 
 ## Где задать секреты
@@ -187,8 +189,8 @@ observability по умолчанию выключена.
 
 ## Локальная разработка
 
-Нужны Node.js 22+ и Python 3.12+. pywrangler дополнительно загрузит совместимый
-CPython/Pyodide для Python Workers — это не изменение языка игровых правил.
+Нужны Node.js 22+ и Python 3.12+. SDK устанавливается из универсального wheel,
+поэтому отдельное нативное/Pyodide-окружение для сборки не требуется.
 
 ```text
 npm ci
@@ -216,13 +218,20 @@ python -m uv run --env-file .dev.vars python scripts/register_commands.py
 ```text
 npm run check
 npm test
-python -m uv run pywrangler deploy --dry-run --outdir dist/worker
+python -m uv run python scripts/prepare_worker.py --check-bundle
 ```
 
 Интеграционный тест требует `TEST_DATABASE_URL` одноразовой тестовой PostgreSQL,
 иначе пропускается. CI поднимает PostgreSQL 17 без production secrets и проверяет
 миграции, повторные команды, конкурентные списания, откат ошибки, динамические
 настройки, очередь ответов, повторы доставки и очистку токенов.
+
+Проверка упаковки сравнивает фактически включённые в `dist/worker/python_modules`
+файлы с manifest, созданным при build. Наличие SDK только в `.venv` недостаточно.
+При отсутствии `workers/__init__.py`, вспомогательных SDK-файлов или маркера
+`pyvenv.cfg` build/deploy завершится до публикации с понятной ошибкой. Это защищает
+от ошибки Cloudflare `ModuleNotFoundError: No module named 'workers'` из-за пустого
+vendor-каталога. В логах успешной проверки: `Upload bundle verified: all 22 Python SDK files are included.`
 
 `scripts/smoke_worker.py` проверяет локальный workerd с публичным RFC 8032 тестовым
 ключом: health, подписанный PING, неверную подпись, просроченный timestamp,

@@ -6,7 +6,7 @@
   "scripts": {
     "build": "python scripts/bootstrap.py",
     "deploy": "python -m uv run python scripts/deploy.py",
-    "dev": "python -m uv run pywrangler dev",
+    "dev": "python -m uv run python scripts/dev.py",
     "check": "python -m uv run ruff check .",
     "test": "python -m uv run pytest -q"
   },

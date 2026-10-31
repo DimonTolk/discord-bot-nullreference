@@ -33,4 +33,4 @@ jobs:
       - run: npm run build
       - run: npm run check
       - run: npm test
-      - run: python -m uv run pywrangler deploy --dry-run --outdir dist/worker
+      - run: python -m uv run python scripts/prepare_worker.py --check-bundle

@@ -18,3 +18,4 @@ if __name__ == "__main__":
         run("-m", "pip", "install", "uv==0.13.6")
     run("-m", "uv", "sync", "--locked")
     run("-m", "uv", "run", "python", "scripts/build.py")
+    run("-m", "uv", "run", "python", "scripts/prepare_worker.py")

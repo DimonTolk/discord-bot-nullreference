@@ -1,12 +1,12 @@
 """Production Workers Builds command. Runtime secrets are configured separately."""
 
 import os
-import subprocess
 import sys
 
 from build import main as build
 from migrate import migrate
 from register_commands import register
+from prepare_worker import package, verify_vendor, wrangler
 
 
 def main():
@@ -20,9 +20,13 @@ def main():
         return 1
     try:
         build()
+        verify_vendor()
+        package()
         migrate()
         # Publish only after migrations succeed. shell=False; no secrets in process arguments.
-        subprocess.run([sys.executable, "-m", "pywrangler", "deploy"], check=True)
+        # Packaging is already complete and verified. Do not let a second
+        # pywrangler sync replace the SDK directory before the actual upload.
+        wrangler("deploy")
         register()
     except Exception as exc:
         print(
