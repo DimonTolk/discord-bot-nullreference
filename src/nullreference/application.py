@@ -11,6 +11,7 @@ from .themes.mafia.help import render_help
 from .themes.mafia.casino import component_action, render as render_casino
 from .themes.mafia.weekly import MafiaWeeklyTasks
 from .themes.mafia.underworld import restriction
+from .themes.mafia.policing import police_profile
 
 
 def message(text, **extra):
@@ -183,6 +184,8 @@ class Application:
             player = state["players"][actor]
             family = state["families"][player["family"]]
             if name == "profile":
+                if player["family"] == "police":
+                    return police_profile(state, actor, time.time())
                 return message(
                     f"**{FAMILIES[player['family']]}**\nЛичные деньги: {player['money']}\n"
                     f"Касса: {family['money']}\nВлияние: {family['influence']}\n"
