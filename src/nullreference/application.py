@@ -201,6 +201,15 @@ class Application:
                         )
                         or "нет"
                     )
+                    + "\nВаши незавершённые подрывы влияния: "
+                    + (
+                        ", ".join(
+                            oid
+                            for oid, op in state.get("sabotages", {}).items()
+                            if op["organizer"] == actor and op["status"] == "open"
+                        )
+                        or "нет"
+                    )
                 )
             lines = []
             for bid, b in state["bribes"].items():

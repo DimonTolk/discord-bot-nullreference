@@ -78,6 +78,22 @@ COMMANDS = [
     ),
     command("cooperate", "За 2 влияния создать улику, пока член семьи под арестом", FAMILY),
     command("evidence", "Посмотреть количество улик по семьям (полиция)"),
+    command(
+        "sabotage_start",
+        "Тайно перехватить влияние: 40 из кассы (глава)",
+        option("family", "Цель", choices={k: v for k, v in FAMILIES.items() if k != "police"}),
+        option(
+            "beneficiary",
+            "Получатель, по умолчанию ваша семья",
+            required=False,
+            choices={k: v for k, v in FAMILIES.items() if k != "police"},
+        ),
+    ),
+    command("sabotage_join", "Тайно присоединиться к подрыву влияния", OPERATION),
+    command("sabotage_status", "Секретный статус подрыва влияния (организатор)", OPERATION),
+    command(
+        "sabotage_resolve", "Подвести итог подрыва влияния после срока (организатор)", OPERATION
+    ),
     command("inbox", "Личные конверты и предложения передачи районов"),
     command(
         "slots",

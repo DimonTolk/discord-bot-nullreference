@@ -40,6 +40,17 @@ def main():
         + "\n",
         "utf-8",
     )
+    news = [
+        (key, value) for key, value in sorted(values.items()) if key.startswith("news_sabotage_")
+    ]
+    (ROOT / "docs/sabotage-news.md").write_text(
+        "# Новости о подрыве влияния\n\n"
+        "100 вариантов: по 10 успехов и неудач на преступную семью. "
+        "Редактирование без деплоя: `/flavour_edit key:…`.\n\n"
+        + "\n\n---\n\n".join(f"## `{key}`\n\n{value}" for key, value in news)
+        + "\n",
+        "utf-8",
+    )
     print(f"Validated {len(commands)} commands and {len(values)} flavour templates.")
 
 

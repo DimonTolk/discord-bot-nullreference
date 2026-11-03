@@ -207,6 +207,7 @@ def test_all_game_mutations_blocked_but_views_available_and_roles_do_not_clear()
         "tick",
         "blackjack_table",
         "plot_status",
+        "sabotage_status",
         "evidence",
         "leader_set",
         "reward",

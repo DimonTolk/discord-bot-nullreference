@@ -135,6 +135,70 @@ def test_plot_leak_replay_and_concurrent_family_arrests():
     asyncio.run(scenario())
 
 
+def test_sealed_sabotage_concurrent_transfers_do_not_overdraw_or_duplicate_news():
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    async def scenario():
+        from unittest.mock import patch
+
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from migrate import migrate
+
+        url = os.environ["TEST_DATABASE_URL"]
+        await asyncio.to_thread(migrate, url)
+        sql = PostgresSQL(url)
+        db, theme = Database(sql), MafiaSeason(roll=lambda n: 0)
+        guild, season = "996", f"sabotage-{uuid.uuid4()}"
+        identities = {"1": "mafia", "2": "mafia", "3": "cartel", "4": "yakuza", "5": "yakuza"}
+
+        async def act(actor, request, action, **kwargs):
+            return await db.execute(
+                guild, season, theme, actor, request, action, identities=identities, **kwargs
+            )
+
+        for family in ("mafia", "yakuza", "cartel"):
+            await act(
+                "0",
+                "fund:" + family,
+                "reward",
+                family=family,
+                influence=5 if family == "cartel" else 0,
+                money=100,
+                reference="test:" + family,
+            )
+        a = (await act("1", "start1", "sabotage_start", family="cartel"))["values"]["id"]
+        b = (await act("4", "start2", "sabotage_start", family="cartel"))["values"]["id"]
+        await act("2", "join1", "sabotage_join", operation=a)
+        await act("5", "join2", "sabotage_join", operation=b)
+        news = await sql.query(
+            "SELECT id FROM news_outbox WHERE guild_id=$1 AND season_id=$2", [guild, season]
+        )
+        assert news == []
+        state = await db.snapshot(guild, season, theme)
+        deadline = max(op["until"] for op in state["sabotages"].values())
+        with patch("nullreference.core.database.time.time", return_value=deadline):
+            results = await asyncio.gather(
+                act("1", "resolve1", "sabotage_resolve", operation=a),
+                act("4", "resolve2", "sabotage_resolve", operation=b),
+            )
+            replay = await act("1", "resolve1", "sabotage_resolve", operation=a)
+        assert replay == results[0]
+        assert sorted(r["values"]["amount"] for r in results) == [1, 4]
+        state = await db.snapshot(guild, season, theme)
+        assert state["families"]["cartel"]["influence"] == 0
+        assert sum(state["families"][f]["influence"] for f in ("mafia", "yakuza")) == 5
+        assert all(op["target_influence"] == 5 for op in state["sabotages"].values())
+        news = await sql.query(
+            "SELECT text_key,payload FROM news_outbox WHERE guild_id=$1 AND season_id=$2",
+            [guild, season],
+        )
+        assert len(news) == 2 and sum(row["payload"]["amount"] for row in news) == 5
+        assert all(set(row["payload"]) == {"beneficiary", "amount"} for row in news)
+
+    asyncio.run(scenario())
+
+
 class PostgresSQL:
     """Test-only libpq adapter. Production uses NeonHTTP and has no native dependencies."""
 

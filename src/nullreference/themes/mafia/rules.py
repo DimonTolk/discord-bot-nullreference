@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from nullreference.core.theme import RuleError
 from .casino import MafiaCasino
 from .underworld import MafiaUnderworld, available, restriction
+from .sabotage import MafiaSabotage
 
 DAY = 86400
 FAMILIES = {
@@ -38,6 +39,7 @@ class MafiaSeason:
         self.roll = roll or secrets.randbelow
         self.casino = MafiaCasino(self.roll)
         self.underworld = MafiaUnderworld(self)
+        self.sabotage = MafiaSabotage(self)
 
     def initial_state(self):
         return {
@@ -69,6 +71,7 @@ class MafiaSeason:
             "tick",
             "blackjack_table",
             "plot_status",
+            "sabotage_status",
             "evidence",
             "leader_set",
             "reward",
@@ -82,6 +85,18 @@ class MafiaSeason:
         handler = getattr(self, f"do_{action}", None)
         require(handler is not None, "Неизвестное действие")
         return handler(state, actor, now, **args)
+
+    def do_sabotage_start(self, s, actor, now, family, beneficiary=None):
+        return self.sabotage.start(s, actor, now, family, beneficiary)
+
+    def do_sabotage_join(self, s, actor, now, operation):
+        return self.sabotage.join(s, actor, now, operation)
+
+    def do_sabotage_status(self, s, actor, now, operation):
+        return self.sabotage.status(s, actor, now, operation)
+
+    def do_sabotage_resolve(self, s, actor, now, operation):
+        return self.sabotage.resolve(s, actor, now, operation)
 
     def do_plot_start(self, s, actor, now, target):
         return self.underworld.start(s, actor, now, target)
