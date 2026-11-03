@@ -70,7 +70,7 @@ def test_bad_bets_do_not_touch_wallet_quota_or_family(action, amount):
     assert state == before
 
 
-def test_shared_quota_week_reset_and_role_change():
+def test_shared_quota_daily_reset_and_role_change():
     theme, state = game([0] * 30)
     for _ in range(4):
         act(theme, state, "slots", amount=5)
@@ -83,7 +83,7 @@ def test_shared_quota_week_reset_and_role_change():
     theme.sync_members(state, {"1": "cartel"}, NOW)
     with pytest.raises(RuleError, match="5 игр"):
         act(theme, state, "slots", amount=5)
-    act(theme, state, "slots", now=NOW + 7 * 86400, amount=5)
+    act(theme, state, "slots", now=(NOW // 86400 + 1) * 86400, amount=5)
     assert state["players"]["1"]["casino_usage"]["count"] == 1
 
 
@@ -104,6 +104,23 @@ def test_blackjack_hidden_card_buttons_and_repeated_clicks():
     assert not render(done)["components"] and "🂠" not in render(done)["content"]
     assert act(theme, state, "blackjack_move", hand=hand, revision=1, decision="stand") == done
     assert state["players"]["1"]["casino_usage"]["count"] == 1
+
+
+def test_daily_quota_boundary_and_legacy_weekly_state():
+    midnight = (NOW // 86400 + 1) * 86400
+    theme, state = game([0] * 21)
+    player = state["players"]["1"]
+    player["casino_usage"] = {"week": "2026-45", "count": 5}
+    # Switching to daily quotas starts a fresh daily counter once.
+    for _ in range(5):
+        act(theme, state, "slots", now=midnight - 1, amount=5)
+    with pytest.raises(RuleError, match="5 игр в день"):
+        act(theme, state, "slots", now=midnight - 1, amount=5)
+    act(theme, state, "slots", now=midnight, amount=5)
+    usage = state["players"]["1"]["casino_usage"]
+    assert usage["count"] == 1 and "day" in usage and "week" not in usage
+    act(theme, state, "slots", now=midnight + 1, amount=5)
+    assert state["players"]["1"]["casino_usage"]["count"] == 2
 
 
 @pytest.mark.parametrize(

@@ -406,7 +406,7 @@ and [Neon serverless](https://neon.com/docs/serverless/serverless-driver) for pl
 
 ## Casino
 
-Use `/casino_channel` (Manage Server) to select the casino text channel. `/slots amount:5` accepts 5–20 personal funds; `/blackjack amount:10` accepts 10 up to the personal balance (Discord integer ceiling: 2^53−1). Both share five game starts per player per ISO week, resetting Monday 00:00 UTC. Family funds are never used.
+Use `/casino_channel` (Manage Server) to select the casino text channel. `/slots amount:5` accepts 5–20 personal funds; `/blackjack amount:10` accepts 10 up to the personal balance (Discord integer ceiling: 2^53−1). Both share five game starts per player per UTC day, resetting daily at 00:00 UTC. Family funds are never used.
 
 Slots draw three independent uniform symbols from four symbols. Any triple returns 3x the stake; exactly two cherries returns 2x; other outcomes return zero. Payout probability is 13/64 (20.3125%), expected return is 46.875%; multipliers include the stake.
 

@@ -48,12 +48,12 @@ class MafiaCasino:
         check(amount <= player["money"], "Недостаточно личных денег")
 
     def allowance(self, player, now):
-        date = datetime.fromtimestamp(now, timezone.utc).isocalendar()
-        key = f"{date.year}-{date.week}"
-        usage = player.setdefault("casino_usage", {"week": key, "count": 0})
-        if usage["week"] != key:
-            usage.update(week=key, count=0)
-        check(usage["count"] < 5, "Лимит казино: 5 игр в неделю. Сброс в понедельник 00:00 UTC")
+        key = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+        usage = player.setdefault("casino_usage", {"day": key, "count": 0})
+        if usage.get("day") != key:
+            usage.clear()
+            usage.update(day=key, count=0)
+        check(usage["count"] < 5, "Лимит казино: 5 игр в день. Сброс ежедневно в 00:00 UTC")
         usage["count"] += 1
 
     def slots(self, season, state, actor, now, amount):
@@ -161,7 +161,7 @@ def render(result):
             + " │ ".join(SYMBOLS[i] for i in result["reels"])
             + f"\nСтавка: {result['bet']} · Выплата: {result['payout']}"
             + ("\n🎉 Выигрыш!" if result["payout"] else "\n💨 В этот раз без выигрыша.")
-            + f"\nЛичные деньги: {result['money']} · Игр на этой неделе: {result['used']}/5"
+            + f"\nЛичные деньги: {result['money']} · Игр сегодня: {result['used']}/5"
         )
         return {"content": text, "components": []}
     h = result["hand"]
