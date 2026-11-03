@@ -346,6 +346,21 @@ class MafiaSeason:
         }
         return result
 
+    def do_patrol(self, s, actor, now, family):
+        p = self.officer(s, actor, now)
+        require(family in FAMILIES and family != "police", "Выберите преступную семью")
+        date = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+        w = week(now)
+        require(p.get("last_patrol") != date, "Патруль доступен раз в сутки (UTC)")
+        weeks = p.setdefault("patrol_weeks", {})
+        require(weeks.get(w, 0) < 3, "Лимит: три патруля в неделю на полицейского (UTC)")
+        p["last_patrol"] = date
+        weeks[w] = weeks.get(w, 0) + 1
+        s["clues"][family] = s["clues"].get(family, 0) + 1
+        return reply(
+            "patrolled", family=FAMILIES[family], clues=s["clues"][family], remaining=3 - weeks[w]
+        )
+
     def do_investigate(self, s, actor, now, family):
         self.officer(s, actor, now)
         require(family in FAMILIES and family != "police", "Выберите семью")

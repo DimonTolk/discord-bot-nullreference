@@ -109,6 +109,15 @@ COMMANDS = [
     ),
     command("operation_join", "Присоединиться к делу своей семьи", OPERATION),
     command("operation_resolve", "Подвести итог дела после срока", OPERATION),
+    command(
+        "patrol",
+        "Патруль: +1 улика без дела, раз в сутки, 3 раза в неделю на полицейского",
+        option(
+            "family",
+            "Против какой семьи собирать улики",
+            choices={k: v for k, v in FAMILIES.items() if k != "police"},
+        ),
+    ),
     command("investigate", "Проверить семью (полиция)", FAMILY),
     command("raid", "Назначить облаву за три улики", OPERATION),
     command(
