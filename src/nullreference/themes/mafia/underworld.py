@@ -106,9 +106,9 @@ class MafiaUnderworld:
         require(len(p["members"]) < 12, "Максимум 12 участников")
         p["members"].append(actor)
         result = reply("plot_joined")
-        if t.roll(100) < 42:
+        if t.roll(100) < 21:
             p["leaks"] += 1
-            if t.roll(100) < 50:
+            if t.roll(100) < 25:
                 p["named"] = True
                 state["clues"][p["family"]] = state["clues"].get(p["family"], 0) + 3
                 result["news"] = {
@@ -125,7 +125,7 @@ class MafiaUnderworld:
     def status(self, state, actor, now, plot):
         p = self.get(state, plot)
         require(p["organizer"] == actor, "Статус доступен только организатору")
-        chance = min(80, 30 + 10 * (len(p["members"]) - 1))
+        chance = min(90, 30 + 15 * (len(p["members"]) - 1))
         return reply(
             "plot_status",
             id=plot,
@@ -160,7 +160,7 @@ class MafiaUnderworld:
             and available(state["players"][uid], now)
         ]
         p["members"] = eligible
-        chance = min(80, 30 + 10 * (len(eligible) - 1))
+        chance = min(90, 30 + 15 * (len(eligible) - 1))
         success = bool(valid_target and len(eligible) >= 2 and t.roll(100) < chance)
         p["status"] = "resolved"
         if success:

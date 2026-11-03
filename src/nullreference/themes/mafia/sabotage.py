@@ -18,7 +18,7 @@ def success_chance(operation):
     count = len(operation["members"])
     if count < 2:
         return 0
-    return max(10, min(85, 60 + 8 * (count - 2) - 2 * operation["target_influence"]))
+    return max(10, min(90, 60 + 12 * (count - 2) - 2 * operation["target_influence"]))
 
 
 class MafiaSabotage:
@@ -126,7 +126,7 @@ class MafiaSabotage:
         # Intentionally do not refresh/filter the committed roster or target influence snapshot.
         chance = success_chance(op)
         success = chance > 0 and t.roll(100) < chance
-        exposed = not success and t.roll(100) < 42
+        exposed = not success and t.roll(100) < 21
         amount = 0
         if success:
             target = state["families"][op["target"]]

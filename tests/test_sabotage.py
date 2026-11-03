@@ -72,8 +72,13 @@ def test_private_launch_join_and_no_randomness_or_news_before_deadline():
     [
         (1, 1, 0),
         (2, 10, 40),
-        (4, 10, 56),
-        (12, 1, 85),
+        (4, 10, 64),
+        (12, 1, 90),
+        (2, 6, 48),
+        (3, 6, 60),
+        (4, 6, 72),
+        (5, 6, 84),
+        (6, 6, 90),
         (2, 100, 10),
     ],
 )
@@ -123,7 +128,7 @@ def test_transfer_is_bounded_conserves_available_influence_and_can_benefit_ally(
     assert s == before
 
 
-@pytest.mark.parametrize("reveal,exposed", [(41, True), (42, False)])
+@pytest.mark.parametrize("reveal,exposed", [(20, True), (21, False)])
 def test_failed_campaign_only_reveals_family_conditionally_after_deadline(reveal, exposed):
     t, s = game()
     oid = start(t, s)

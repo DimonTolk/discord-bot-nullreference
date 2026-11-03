@@ -54,7 +54,7 @@ def test_plot_privacy_permissions_and_recruit_validation():
             act(t, s, uid, "plot_join", plot=pid)
     result = act(t, s, "2", "plot_join", plot=pid)
     assert result == {"key": "plot_joined", "values": {}}
-    assert act(t, s, "1", "plot_status", plot=pid)["values"]["chance"] == 40
+    assert act(t, s, "1", "plot_status", plot=pid)["values"]["chance"] == 45
     before = deepcopy(s)
     with pytest.raises(RuleError):
         act(t, s, "2", "plot_join", plot=pid)
@@ -70,9 +70,9 @@ def test_plot_privacy_permissions_and_recruit_validation():
 @pytest.mark.parametrize(
     "leak,name,news,clues",
     [
-        (42, 0, None, 0),
-        (41, 50, "news_plot_leak", 0),
-        (41, 49, "news_plot_named", 3),
+        (21, 0, None, 0),
+        (20, 25, "news_plot_leak", 0),
+        (20, 24, "news_plot_named", 3),
     ],
 )
 def test_leak_and_conditional_identity_boundaries(leak, name, news, clues):
@@ -161,7 +161,16 @@ def test_public_status_omits_private_plots_and_join_reply_omits_news_payload():
 
 @pytest.mark.parametrize(
     "count,roll,success",
-    [(1, 0, False), (2, 39, True), (2, 40, False), (6, 79, True), (12, 80, False)],
+    [
+        (1, 0, False),
+        (2, 44, True),
+        (2, 45, False),
+        (3, 59, True),
+        (3, 60, False),
+        (5, 89, True),
+        (6, 89, True),
+        (12, 90, False),
+    ],
 )
 def test_success_probability_and_half_wallet(count, roll, success):
     t, s = game()
