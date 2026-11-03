@@ -111,14 +111,14 @@ COMMANDS = [
     command("operation_resolve", "Подвести итог дела после срока", OPERATION),
     command(
         "patrol",
-        "Патруль: +1 улика без дела, раз в сутки, 3 раза в неделю на полицейского",
+        "Патруль: шанс 60% на улику, раз в сутки, 3 раза в неделю на полицейского",
         option(
             "family",
             "Против какой семьи собирать улики",
             choices={k: v for k, v in FAMILIES.items() if k != "police"},
         ),
     ),
-    command("investigate", "Проверить семью (полиция)", FAMILY),
+    command("investigate", "Проверить семью: шанс 60% на улику (полиция)", FAMILY),
     command("raid", "Назначить облаву за три улики", OPERATION),
     command(
         "raid_response",

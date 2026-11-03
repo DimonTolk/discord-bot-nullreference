@@ -87,3 +87,33 @@ def test_patrol_independent_of_work_and_investigations_and_validates_choice():
     for family in ("police", "unknown"):
         with pytest.raises(RuleError):
             parse_options({"data": {"options": [{"name": "family", "value": family}]}}, "patrol")
+
+
+@pytest.mark.parametrize("action", ["patrol", "investigate"])
+def test_exact_sixty_percent_odds_and_failed_attempt_consumes_budget(action):
+    successes = 0
+    for draw in range(100):
+        t, s = game()
+        s["operations"]["test"] = {"family": "cartel", "status": "open", "raid": None}
+        s["clues"]["cartel"] = 5
+        t.roll = lambda n, value=draw: value
+        result = t.apply(s, "1", action, MONDAY, family="cartel")
+        found = s["clues"]["cartel"] == 6
+        successes += found
+        assert found == (draw < 60)
+        assert result["key"] == (
+            ("patrolled" if action == "patrol" else "investigated")
+            if found
+            else ("patrol_empty" if action == "patrol" else "investigation_empty")
+        )
+        if action == "patrol":
+            assert s["players"]["1"]["last_patrol"] == "2026-11-02"
+            with pytest.raises(RuleError, match="сутки"):
+                patrol(t, s)
+        else:
+            assert s["police_actions"]["2026-45"] == 1
+            t.apply(s, "1", action, MONDAY, family="cartel")
+            t.apply(s, "2", action, MONDAY, family="cartel")
+            with pytest.raises(RuleError, match="три действия"):
+                t.apply(s, "1", action, MONDAY, family="cartel")
+    assert successes == 60

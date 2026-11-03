@@ -356,9 +356,13 @@ class MafiaSeason:
         require(weeks.get(w, 0) < 3, "Лимит: три патруля в неделю на полицейского (UTC)")
         p["last_patrol"] = date
         weeks[w] = weeks.get(w, 0) + 1
-        s["clues"][family] = s["clues"].get(family, 0) + 1
+        found = self.roll(100) < 60
+        s["clues"][family] = s["clues"].get(family, 0) + int(found)
         return reply(
-            "patrolled", family=FAMILIES[family], clues=s["clues"][family], remaining=3 - weeks[w]
+            "patrolled" if found else "patrol_empty",
+            family=FAMILIES[family],
+            clues=s["clues"][family],
+            remaining=3 - weeks[w],
         )
 
     def do_investigate(self, s, actor, now, family):
@@ -375,8 +379,13 @@ class MafiaSeason:
             "Нет открытого дела для проверки",
         )
         s["police_actions"][w] = used + 1
-        s["clues"][family] = s["clues"].get(family, 0) + 1
-        return reply("investigated", clues=s["clues"][family], remaining=2 - used)
+        found = self.roll(100) < 60
+        s["clues"][family] = s["clues"].get(family, 0) + int(found)
+        return reply(
+            "investigated" if found else "investigation_empty",
+            clues=s["clues"][family],
+            remaining=2 - used,
+        )
 
     def do_raid(self, s, actor, now, operation):
         self.officer(s, actor, now)
