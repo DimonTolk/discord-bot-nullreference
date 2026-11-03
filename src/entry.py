@@ -13,6 +13,7 @@ from nullreference.themes.mafia.commands import authorize
 from nullreference.themes.mafia.texts import DEFAULTS
 from nullreference.visibility import deferred_response
 from nullreference.themes.mafia.casino import component_action
+from nullreference.themes.mafia.night_shift import button_action
 
 
 def response(data, status=200):
@@ -87,6 +88,8 @@ class Default(WorkerEntrypoint):
             if payload["type"] == 3:
                 if payload.get("data", {}).get("custom_id", "").startswith("blackjack:"):
                     component_action(payload)
+                elif payload.get("data", {}).get("custom_id", "").startswith("night:"):
+                    button_action(payload)
                 else:
                     return response(modal(payload, DEFAULTS))
             elif payload["type"] == 2:

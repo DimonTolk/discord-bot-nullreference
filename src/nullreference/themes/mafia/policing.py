@@ -2,6 +2,7 @@
 
 from .rules import FAMILIES
 from .underworld import available, restriction
+from .night_shift import is_night
 
 
 def police_profile(state, actor, now):
@@ -37,18 +38,25 @@ def police_profile(state, actor, now):
         if not operations:
             lines.append("📦 Активных дел нет — облава недоступна.")
         for oid, op in operations[:3]:
-            if op.get("raid"):
+            needed = 2 if is_night(op) else 3
+            if is_night(op) and op.get("stage") == "intercept":
+                status = f"раунд решений до <t:{int(op['decision_until'])}:f>; /operation_board operation:{oid}"
+            elif op.get("raid"):
                 status = "облава уже назначена"
             elif now >= op["until"]:
                 status = "сбор завершён, для облавы поздно"
             elif state["raid_cooldowns"].get(family, 0) > now:
                 status = f"защита от облавы до <t:{int(state['raid_cooldowns'][family])}:f>"
-            elif clues < 3:
-                status = f"для облавы нужно ещё {3 - clues} улик"
+            elif clues < needed:
+                status = f"для облавы нужно ещё {needed - clues} улик"
             elif not ready:
                 status = "условия для облавы выполнены; вы пока не можете действовать"
             else:
-                status = f"✅ `/raid operation:{oid}` до <t:{int(op['until'])}:f>"
+                status = (
+                    f"✅ `/operation_board operation:{oid}` — выбрать тайный заслон до <t:{int(op['until'])}:f>"
+                    if is_night(op)
+                    else f"✅ `/raid operation:{oid}` до <t:{int(op['until'])}:f>"
+                )
             lines.append(f"📦 Дело №{oid}: {status}.")
         if len(operations) > 3:
             lines.append(f"Других активных дел: {len(operations) - 3}; см. /status.")
@@ -93,7 +101,7 @@ def police_profile(state, actor, now):
                 "title": "Оперативная сводка по семьям",
                 "color": 3447003,
                 "fields": fields,
-                "description": "Облава: **3 улики**, арест: **4 улики**.\n"
+                "description": "Ночная смена: **2 улики**, старое дело: **3**, арест: **4**.\n"
                 "Арестовать выбранного участника: `/arrest member:@Игрок`.",
                 "footer": {
                     "text": "По известным игровым профилям. Актуальные роли, улики и сроки повторно проверяются при действии."

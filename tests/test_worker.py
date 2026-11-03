@@ -30,7 +30,7 @@ def payload(name="work", options=None, permissions="0"):
 
 def test_manifest_and_server_side_admin_checks():
     commands = manifest()
-    assert len(commands) == 49
+    assert len(commands) == 53
     assert "join" not in {c["name"] for c in commands}
     assert all(not any(k.startswith("_") for k in c) for c in commands)
     for name in ADMIN_COMMANDS:
@@ -38,7 +38,12 @@ def test_manifest_and_server_side_admin_checks():
             authorize(payload(), name)
         authorize(payload(permissions="32"), name)
         authorize(payload(permissions="8"), name)
-    assert parse_options(payload(), "operation_start") == {"prepared": False}
+    with pytest.raises(RuleError):
+        parse_options(payload(), "operation_start")
+    assert parse_options(
+        payload(options=[{"name": "risk", "value": "normal"}, {"name": "route", "value": "port"}]),
+        "operation_start",
+    ) == {"prepared": False, "cargo": 1, "risk": "normal", "route": "port"}
     for value in (-1, 0, 10001, "20", True):
         with pytest.raises(RuleError):
             parse_options(payload(options=[{"name": "amount", "value": value}]), "donate")

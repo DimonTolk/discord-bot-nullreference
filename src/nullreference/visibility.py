@@ -9,10 +9,8 @@ PUBLIC_COMMANDS = frozenset(
         "help",
         "leaderboard",
         "status",
-        "operation_start",
         "operation_join",
         "operation_resolve",
-        "raid",
         "district_bid",
         "district_resolve",
         "district_income",
@@ -22,7 +20,7 @@ PUBLIC_COMMANDS = frozenset(
 
 def deferred_response(payload):
     if payload.get("type") == 3 and payload.get("data", {}).get("custom_id", "").startswith(
-        "blackjack:"
+        ("blackjack:", "night:")
     ):
         return {"type": 6}
     public = payload.get("type") == 2 and payload.get("data", {}).get("name") in PUBLIC_COMMANDS

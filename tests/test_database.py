@@ -199,6 +199,69 @@ def test_sealed_sabotage_concurrent_transfers_do_not_overdraw_or_duplicate_news(
     asyncio.run(scenario())
 
 
+def test_night_shift_concurrent_decoy_and_final_result_are_atomic():
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    async def scenario():
+        from unittest.mock import patch
+
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from migrate import migrate
+
+        url = os.environ["TEST_DATABASE_URL"]
+        await asyncio.to_thread(migrate, url)
+        sql = PostgresSQL(url)
+        db, theme = Database(sql), MafiaSeason(roll=lambda n: 0)
+        guild, season = "995", f"night-{uuid.uuid4()}"
+        identities = {"1": "mafia", "2": "mafia", "3": "mafia", "4": "police"}
+
+        async def act(actor, request, action, **kwargs):
+            return await db.execute(
+                guild, season, theme, actor, request, action, identities=identities, **kwargs
+            )
+
+        await act(
+            "0", "fund", "reward", family="mafia", influence=0, money=100, reference="night-fund"
+        )
+        started = await act("1", "start", "operation_start", risk="normal", route="port", cargo=1)
+        oid = started["news"]["values"]["id"]
+        assert set(started["news"]["values"]) == {"family", "id"}
+        for uid, task in (("1", "scout"), ("2", "papers"), ("3", "load")):
+            if uid != "1":
+                await act(uid, "join:" + uid, "operation_join", operation=oid)
+            await act(uid, "task:" + uid, "operation_task", operation=oid, task=task)
+        await act("4", "raid", "raid", operation=oid, route="port")
+        state = await db.snapshot(guild, season, theme)
+        deadline = state["operations"][oid]["until"]
+        with patch("nullreference.core.database.time.time", return_value=deadline):
+            await act("1", "close", "operation_resolve", operation=oid)
+            await asyncio.gather(
+                act("1", "choice1", "raid_response", operation=oid, decision="reroute"),
+                act("1", "choice2", "raid_response", operation=oid, decision="reroute"),
+            )
+            await act("4", "tactic", "raid_tactic", operation=oid, tactic="inspect")
+            results = await asyncio.gather(
+                act("1", "result", "operation_resolve", operation=oid),
+                act("1", "result", "operation_resolve", operation=oid),
+            )
+        assert results[0] == results[1]
+        state = await db.snapshot(guild, season, theme)
+        assert state["families"]["mafia"]["money"] == 150  # 100-20+70, once each.
+        assert state["families"]["mafia"]["influence"] == 4
+        assert all(state["players"][uid]["money"] == 25 for uid in ("1", "2", "3"))
+        news = await sql.query(
+            "SELECT text_key FROM news_outbox WHERE guild_id=$1 AND season_id=$2", [guild, season]
+        )
+        assert sorted(row["text_key"] for row in news) == [
+            "news_night_intercept",
+            "news_night_result",
+            "news_night_started",
+        ]
+
+    asyncio.run(scenario())
+
+
 class PostgresSQL:
     """Test-only libpq adapter. Production uses NeonHTTP and has no native dependencies."""
 

@@ -51,6 +51,19 @@ def main():
         + "\n",
         "utf-8",
     )
+    cargo = [
+        (key, value) for key, value in sorted(values.items()) if key.startswith("night_cargo_")
+    ]
+    (ROOT / "docs/night-shift-cargo.md").write_text(
+        "# Грузы «Ночной смены»\n\n"
+        "По 6 сюжетов на риск: low / normal / high. "
+        "Выбор: `/operation_catalog risk:…`, создание: `/operation_start risk:… route:… cargo:1`. "
+        "Сюжеты одного риска имеют одинаковые числовые условия. "
+        "Тексты меняются через `/flavour_edit key:night_cargo_low_1` без деплоя.\n\n"
+        + "\n\n---\n\n".join(f"## `{key}`\n\n{value}" for key, value in cargo)
+        + "\n",
+        "utf-8",
+    )
     print(f"Validated {len(commands)} commands and {len(values)} flavour templates.")
 
 

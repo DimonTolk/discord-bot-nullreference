@@ -3,6 +3,7 @@
 from nullreference.core.theme import RuleError
 from .rules import FAMILIES, DISTRICTS
 from .help import TOPICS
+from .night_shift import ROUTES, RISKS, TASKS, TACTICS
 
 
 def option(name, description, kind=3, required=True, choices=None, default=None, **limits):
@@ -120,8 +121,31 @@ COMMANDS = [
     ),
     command(
         "operation_start",
-        "Открыть дело на 24 часа (глава семьи)",
+        "Ночная смена: выбрать риск и скрытый маршрут (глава)",
+        option("risk", "Уровень риска", choices=RISKS),
+        option("route", "Скрытый маршрут", choices=ROUTES),
+        option(
+            "cargo", "Груз 1–6 из /operation_catalog", 4, False, default=1, min_value=1, max_value=6
+        ),
         option("prepared", "Подготовка за 40 из кассы", 5, False, default=False),
+    ),
+    command(
+        "operation_catalog",
+        "Шесть грузов для выбранного риска",
+        option("risk", "Уровень риска", choices=RISKS),
+    ),
+    command("operation_board", "Личный пульт дела с кнопками и скрытой информацией", OPERATION),
+    command(
+        "operation_task",
+        "Выбрать задачу подготовки один раз",
+        OPERATION,
+        option("task", "Подготовка", choices=TASKS),
+    ),
+    command(
+        "raid_tactic",
+        "Выбрать тактику при перехвате (назначенный полицейский)",
+        OPERATION,
+        option("tactic", "Тактика", choices=TACTICS),
     ),
     command("operation_join", "Присоединиться к делу своей семьи", OPERATION),
     command("operation_resolve", "Подвести итог дела после срока", OPERATION),
@@ -135,7 +159,12 @@ COMMANDS = [
         ),
     ),
     command("investigate", "Проверить семью: шанс 60% на улику (полиция)", FAMILY),
-    command("raid", "Назначить облаву за три улики", OPERATION),
+    command(
+        "raid",
+        "Тайно поставить заслон: 2 улики для Ночной смены, 3 для старых дел",
+        OPERATION,
+        option("route", "Скрытое место заслона (Ночная смена)", required=False, choices=ROUTES),
+    ),
     command(
         "raid_response",
         "Ответить на облаву (глава)",
@@ -144,9 +173,9 @@ COMMANDS = [
             "decision",
             "Решение",
             choices={
-                "cancel": "Отменить",
-                "reroute": "Сменить маршрут: 40",
-                "continue": "Продолжить",
+                "cancel": "Сдать груз (старое дело: отменить)",
+                "reroute": "Ложный конвой: 20 (старое дело: смена маршрута за 40)",
+                "continue": "Прорыв (старое дело: продолжить)",
             },
         ),
     ),

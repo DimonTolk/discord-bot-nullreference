@@ -12,6 +12,7 @@ from .themes.mafia.casino import component_action, render as render_casino
 from .themes.mafia.weekly import MafiaWeeklyTasks
 from .themes.mafia.underworld import restriction
 from .themes.mafia.policing import police_profile
+from .themes.mafia.night_shift import button_action, is_night, RISKS, PLANS
 
 
 def message(text, **extra):
@@ -60,6 +61,8 @@ class Application:
             operation = state["operations"].get(args.get("operation"))
             if name == "operation_resolve" and operation:
                 others.update(operation["members"])
+                if is_night(operation) and operation["raid"]:
+                    others.add(operation["raid"]["officer"])
             if name == "bribe_offer" and operation and operation["raid"]:
                 others.add(operation["raid"]["officer"])
             if name == "bribe_decide" and (bribe := state["bribes"].get(args.get("bribe"))):
@@ -87,6 +90,17 @@ class Application:
         )
         return result
 
+    async def night_message(self, result):
+        if result.get("night"):
+            scenario = (
+                await self.flavour.render(result["scenario_key"]) if result["scenario_key"] else ""
+            )
+            text = await self.flavour.render(
+                "night_board", details=result["details"], scenario=scenario
+            )
+            return message(text, components=result["components"])
+        return message(await self.flavour.render(result["key"], **result["values"]), components=[])
+
     async def casino_channel(self, payload):
         rows = await self.sql.query(
             "SELECT casino_channel_id FROM guild_settings WHERE guild_id=$1", [self.guild]
@@ -97,6 +111,14 @@ class Application:
     async def dispatch(self, payload):
         actor = payload["member"]["user"]["id"]
         if payload["type"] == 3:
+            if payload.get("data", {}).get("custom_id", "").startswith("night:"):
+                name, args = button_action(payload)
+                result = await self.act(payload, name, args)
+                if name == "operation_join":
+                    result = await self.act(
+                        {**payload, "id": payload["id"] + ":board"}, "operation_board", args
+                    )
+                return await self.night_message(result)
             args = component_action(payload)
             await self.casino_channel(payload)
             return {
@@ -130,6 +152,16 @@ class Application:
                 [self.guild, args["channel"]],
             )
             return message("Канал казино сохранён.")
+        if name == "operation_catalog":
+            risk = args["risk"]
+            plan = PLANS[risk]
+            entries = [await self.flavour.render(f"night_cargo_{risk}_{i}") for i in range(1, 7)]
+            return message(
+                f"## 🌃 {RISKS[risk]}\n"
+                + "\n\n".join(f"**{i}.** {entry}" for i, entry in enumerate(entries, 1))
+                + f"\n\nУспех: {plan['money']} в кассу, {plan['personal']} каждому, {plan['influence']} влияния.\n"
+                + "Создание: /operation_start risk:… route:… cargo:1"
+            )
         if name == "weekly_tasks":
             action = args["action"]
             if action != "schedule" and any(
@@ -256,8 +288,13 @@ class Application:
                 )
             for oid, o in state["operations"].items():
                 if o["status"] == "open":
+                    phase = (
+                        f"решения до <t:{int(o['decision_until'])}:f>"
+                        if is_night(o) and o["stage"] == "intercept"
+                        else f"сбор до <t:{int(o['until'])}:f>"
+                    )
                     lines.append(
-                        f"Дело №{oid}: {FAMILIES[o['family']]}; {len(o['members'])} участников, до <t:{int(o['until'])}:f>"
+                        f"Дело №{oid}: {FAMILIES[o['family']]}; {len(o['members'])} участников, {phase}"
                     )
             return message("\n".join(lines))
         if name == "family_role":
@@ -338,7 +375,7 @@ class Application:
                 "Схема доступна, команды зарегистрированы. Настройте /family_role и /news_channel."
             )
         result = await self.act(payload, name, args)
-        return message(await self.flavour.render(result["key"], **result["values"]))
+        return await self.night_message(result)
 
     async def process(self, payload):
         if (

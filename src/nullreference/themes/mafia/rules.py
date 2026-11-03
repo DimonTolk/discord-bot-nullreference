@@ -7,6 +7,7 @@ from nullreference.core.theme import RuleError
 from .casino import MafiaCasino
 from .underworld import MafiaUnderworld, available, restriction
 from .sabotage import MafiaSabotage
+from .night_shift import NightShift, is_night
 
 DAY = 86400
 FAMILIES = {
@@ -40,6 +41,7 @@ class MafiaSeason:
         self.casino = MafiaCasino(self.roll)
         self.underworld = MafiaUnderworld(self)
         self.sabotage = MafiaSabotage(self)
+        self.night = NightShift(self)
 
     def initial_state(self):
         return {
@@ -70,6 +72,7 @@ class MafiaSeason:
             "sync",
             "tick",
             "blackjack_table",
+            "operation_board",
             "plot_status",
             "sabotage_status",
             "evidence",
@@ -275,7 +278,18 @@ class MafiaSeason:
         s["families"][family]["money"] += money
         return reply("reward", family=FAMILIES[family], influence=influence, money=money)
 
-    def do_operation_start(self, s, actor, now, prepared=False):
+    def do_operation_board(self, s, actor, now, operation):
+        return self.night.board(s, actor, now, operation)
+
+    def do_operation_task(self, s, actor, now, operation, task):
+        return self.night.task(s, actor, now, operation, task)
+
+    def do_raid_tactic(self, s, actor, now, operation, tactic):
+        return self.night.tactic(s, actor, now, operation, tactic)
+
+    def do_operation_start(self, s, actor, now, prepared=False, risk=None, route=None, cargo=1):
+        if risk is not None or route is not None:
+            return self.night.start(s, actor, now, risk, route, cargo, prepared)
         self.leader(s, actor)
         p = self.player(s, actor)
         require(p["family"] != "police", "Полиция расследует дела через /investigate")
@@ -317,6 +331,8 @@ class MafiaSeason:
 
     def do_operation_join(self, s, actor, now, operation):
         o = self.operation(s, operation)
+        if is_night(o):
+            return self.night.join(s, actor, now, operation)
         require(self.player(s, actor)["family"] == o["family"], "Это дело другой семьи")
         require(now < o["until"], "Набор завершён")
         require(actor not in o["members"], "Вы уже участвуете")
@@ -326,6 +342,8 @@ class MafiaSeason:
 
     def do_operation_resolve(self, s, actor, now, operation):
         o = self.operation(s, operation)
+        if is_night(o):
+            return self.night.resolve(s, actor, now, operation)
         require(self.player(s, actor)["family"] == o["family"], "Это дело другой семьи")
         require(now >= o["until"], "Дело ещё не завершилось")
         raid = o["raid"]
@@ -402,7 +420,9 @@ class MafiaSeason:
             remaining=2 - used,
         )
 
-    def do_raid(self, s, actor, now, operation):
+    def do_raid(self, s, actor, now, operation, route=None):
+        if is_night(self.operation(s, operation)):
+            return self.night.raid(s, actor, now, operation, route)
         self.officer(s, actor, now)
         o = self.operation(s, operation)
         require(now < o["until"], "Поздно назначать облаву")
@@ -423,6 +443,8 @@ class MafiaSeason:
         return result
 
     def do_raid_response(self, s, actor, now, operation, decision):
+        if is_night(self.operation(s, operation)):
+            return self.night.family_decision(s, actor, now, operation, decision)
         self.leader(s, actor)
         o = self.operation(s, operation)
         require(self.player(s, actor)["family"] == o["family"], "Это дело другой семьи")
