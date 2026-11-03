@@ -12,6 +12,7 @@ from nullreference.security import modal, signature_parts
 from nullreference.themes.mafia.commands import authorize
 from nullreference.themes.mafia.texts import DEFAULTS
 from nullreference.visibility import deferred_response
+from nullreference.themes.mafia.casino import component_action
 
 
 def response(data, status=200):
@@ -84,8 +85,11 @@ class Default(WorkerEntrypoint):
                     }
                 )
             if payload["type"] == 3:
-                return response(modal(payload, DEFAULTS))
-            if payload["type"] == 2:
+                if payload.get("data", {}).get("custom_id", "").startswith("blackjack:"):
+                    component_action(payload)
+                else:
+                    return response(modal(payload, DEFAULTS))
+            elif payload["type"] == 2:
                 authorize(payload, payload["data"]["name"])
             elif payload["type"] == 5:
                 authorize(payload, "flavour_edit")

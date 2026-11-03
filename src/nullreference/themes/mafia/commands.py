@@ -47,6 +47,23 @@ COMMANDS = [
     command("leaderboard", "Рейтинг сторон по заработанному влиянию"),
     command("status", "Карта районов и открытые операции"),
     command("inbox", "Личные конверты и предложения передачи районов"),
+    command(
+        "slots",
+        "Слоты: личная ставка 5–20, общий лимит казино 5 игр в неделю",
+        option("amount", "Личная ставка", 4, min_value=5, max_value=20),
+    ),
+    command(
+        "blackjack",
+        "Начать блэкджек: личная ставка от 10",
+        option("amount", "Личная ставка", 4, min_value=10, max_value=2**53 - 1),
+    ),
+    command("blackjack_table", "Показать свою раздачу и кнопки, без новой ставки"),
+    command(
+        "casino_channel",
+        "Настроить канал казино",
+        option("channel", "Канал казино", 7, channel_types=[0]),
+        admin=True,
+    ),
     command("work", "Подработка: 20–30 денег, три раза в неделю"),
     command(
         "donate",

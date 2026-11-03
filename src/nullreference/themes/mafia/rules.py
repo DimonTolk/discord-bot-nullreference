@@ -4,6 +4,7 @@ import secrets
 from datetime import datetime, timezone
 
 from nullreference.core.theme import RuleError
+from .casino import MafiaCasino
 
 DAY = 86400
 FAMILIES = {
@@ -34,6 +35,7 @@ def reply(key, **values):
 class MafiaSeason:
     def __init__(self, roll=None):
         self.roll = roll or secrets.randbelow
+        self.casino = MafiaCasino(self.roll)
 
     def initial_state(self):
         return {
@@ -64,7 +66,20 @@ class MafiaSeason:
         require(handler is not None, "Неизвестное действие")
         return handler(state, actor, now, **args)
 
+    def do_slots(self, s, actor, now, amount):
+        return self.casino.slots(self, s, actor, now, amount)
+
+    def do_blackjack(self, s, actor, now, amount):
+        return self.casino.start(self, s, actor, now, amount)
+
+    def do_blackjack_move(self, s, actor, now, **args):
+        return self.casino.move(self, s, actor, now, **args)
+
+    def do_blackjack_table(self, s, actor, now):
+        return self.casino.result(self.player(s, actor), actor)
+
     def expire(self, s, now):
+        self.casino.expire(s, now)
         for b in s["bribes"].values():
             if b["status"] == "pending" and b["until"] <= now:
                 s["players"][b["sender"]]["money"] += b["amount"]

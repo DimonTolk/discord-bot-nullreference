@@ -8,6 +8,7 @@ from .themes.mafia.commands import authorize, manifest, parse_options
 from .themes.mafia.membership import MafiaMembership
 from .themes.mafia.rules import DISTRICTS, FAMILIES, MafiaSeason
 from .themes.mafia.help import render_help
+from .themes.mafia.casino import component_action, render as render_casino
 from .themes.mafia.weekly import MafiaWeeklyTasks
 
 
@@ -76,8 +77,22 @@ class Application:
         )
         return result
 
+    async def casino_channel(self, payload):
+        rows = await self.sql.query(
+            "SELECT casino_channel_id FROM guild_settings WHERE guild_id=$1", [self.guild]
+        )
+        if not rows or str(rows[0]["casino_channel_id"]) != str(payload.get("channel_id")):
+            raise RuleError("Играть можно только в настроенном канале казино")
+
     async def dispatch(self, payload):
         actor = payload["member"]["user"]["id"]
+        if payload["type"] == 3:
+            args = component_action(payload)
+            await self.casino_channel(payload)
+            return {
+                **render_casino(await self.act(payload, "blackjack_move", args)),
+                "allowed_mentions": {"parse": []},
+            }
         if payload["type"] == 5:
             _, operation, key, owner = payload["data"]["custom_id"].split(":", 3)
             authorize(payload, "flavour_edit")
@@ -89,6 +104,22 @@ class Application:
         name = payload["data"]["name"]
         authorize(payload, name)
         args = parse_options(payload, name)
+        if name in {"slots", "blackjack", "blackjack_table"}:
+            await self.casino_channel(payload)
+            return {
+                **render_casino(await self.act(payload, name, args)),
+                "allowed_mentions": {"parse": []},
+            }
+        if name == "casino_channel":
+            channel = await self.discord.request("GET", f"/channels/{args['channel']}")
+            if not channel or channel.get("guild_id") != self.guild or channel.get("type") != 0:
+                raise RuleError("Выберите текстовый канал этого сервера")
+            await self.sql.query(
+                "INSERT INTO guild_settings(guild_id,casino_channel_id) VALUES ($1,$2) "
+                "ON CONFLICT(guild_id) DO UPDATE SET casino_channel_id=EXCLUDED.casino_channel_id",
+                [self.guild, args["channel"]],
+            )
+            return message("Канал казино сохранён.")
         if name == "weekly_tasks":
             action = args["action"]
             if action != "schedule" and any(
@@ -351,6 +382,10 @@ class Application:
         now = time.time()
         expired = any(
             b["status"] == "pending" and b["until"] <= now for b in state["bribes"].values()
+        )
+        expired |= any(
+            p.get("blackjack", {}).get("status") == "active" and p["blackjack"]["until"] <= now
+            for p in state["players"].values()
         )
         expired |= any(d["owner"] and d["until"] <= now for d in state["districts"].values())
         if expired:

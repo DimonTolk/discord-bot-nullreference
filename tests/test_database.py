@@ -27,6 +27,45 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+def test_casino_concurrent_start_settlement_and_replay():
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    async def scenario():
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from migrate import migrate
+
+        url = os.environ["TEST_DATABASE_URL"]
+        await asyncio.to_thread(migrate, url)
+        sql = PostgresSQL(url)
+        db, theme = Database(sql), MafiaSeason(roll=lambda n: min(9, n - 1))
+        guild, season = "998", f"casino-{uuid.uuid4()}"
+
+        async def act(request, action, **kwargs):
+            return await db.execute(guild, season, theme, "1", request, action,
+                                    identities={"1": "mafia"}, **kwargs)
+
+        await act("work", "work")  # Personal wallet:29, treasury:0.
+        starts = await asyncio.gather(act("start1", "blackjack", amount=20),
+                                      act("start2", "blackjack", amount=20),
+                                      return_exceptions=True)
+        assert sum(isinstance(x, dict) for x in starts) == 1
+        assert sum(isinstance(x, RuleError) for x in starts) == 1
+        hand = next(x for x in starts if isinstance(x, dict))["hand"]["id"]
+        await asyncio.gather(act("stand1", "blackjack_move", hand=hand, revision=0, decision="stand"),
+                             act("stand2", "blackjack_move", hand=hand, revision=0, decision="stand"))
+        state = await db.snapshot(guild, season, theme)
+        assert state["players"]["1"]["money"] == 29  # Tie, one refund only.
+        assert state["players"]["1"]["casino_usage"]["count"] == 1
+        result = await act("spin1", "slots", amount=5)
+        assert await act("spin1", "slots", amount=5) == result
+        state = await db.snapshot(guild, season, theme)
+        assert state["players"]["1"]["money"] == 39
+        assert state["players"]["1"]["casino_usage"]["count"] == 2
+        assert state["families"]["mafia"]["money"] == 0
+
+    asyncio.run(scenario())
+
+
 class PostgresSQL:
     """Test-only libpq adapter. Production uses NeonHTTP and has no native dependencies."""
 

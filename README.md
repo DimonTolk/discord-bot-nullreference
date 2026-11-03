@@ -403,3 +403,11 @@ live in `themes/mafia/`. Add another theme, select it in `Application`, and chan
 See [Python Workers](https://developers.cloudflare.com/workers/languages/python/),
 [Discord interactions](https://docs.discord.com/developers/interactions/receiving-and-responding),
 and [Neon serverless](https://neon.com/docs/serverless/serverless-driver) for platform documentation.
+
+## Casino
+
+Use `/casino_channel` (Manage Server) to select the casino text channel. `/slots amount:5` accepts 5–20 personal funds; `/blackjack amount:10` accepts 10 up to the personal balance (Discord integer ceiling: 2^53−1). Both share five game starts per player per ISO week, resetting Monday 00:00 UTC. Family funds are never used.
+
+Slots draw three independent uniform symbols from four symbols. Any triple returns 3x the stake; exactly two cherries returns 2x; other outcomes return zero. Payout probability is 13/64 (20.3125%), expected return is 46.875%; multipliers include the stake.
+
+Blackjack uses independent uniform 52-card draws with replacement, so counting seen cards provides no information. Dealer stands on soft 17. Natural blackjack pays 3:2 profit rounded down; ordinary wins return 2x; ties return the stake. No split, double or insurance. One active hand per player, public owner-only Hit/Stand buttons, `/blackjack_table` recovery. After 24 hours, abandoned hands stand automatically during the next action or scheduled maintenance. Stale button revisions do not draw or pay twice. State changes, stake deductions, quotas and payouts share the existing atomic optimistic transaction and interaction replay protection. Casino configuration is stored in `guild_settings.casino_channel_id` by migration 005; no server-specific IDs are committed.
