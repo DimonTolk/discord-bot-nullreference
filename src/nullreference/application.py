@@ -10,6 +10,7 @@ from .themes.mafia.rules import DISTRICTS, FAMILIES, MafiaSeason
 from .themes.mafia.help import render_help
 from .themes.mafia.casino import component_action, render as render_casino
 from .themes.mafia.weekly import MafiaWeeklyTasks
+from .themes.mafia.underworld import restriction
 
 
 def message(text, **extra):
@@ -45,6 +46,14 @@ class Application:
             raise RuleError("Участник покинул сервер")
         result = {actor: self.membership.resolve(member["roles"], bindings)}
         others = set()
+        if name in {"plot_start", "arrest"}:
+            others.add(args["target"] if name == "plot_start" else args["member"])
+        if name == "plot_resolve":
+            state = await self.state()
+            plot = state.get("plots", {}).get(args.get("plot"))
+            if plot and plot["organizer"] == actor:
+                others.update(plot["members"])
+                others.add(plot["target"])
         if name in {"operation_resolve", "bribe_offer", "bribe_decide"}:
             state = await self.state()
             operation = state["operations"].get(args.get("operation"))
@@ -54,7 +63,7 @@ class Application:
                 others.add(operation["raid"]["officer"])
             if name == "bribe_decide" and (bribe := state["bribes"].get(args.get("bribe"))):
                 others.add(bribe["sender"])
-        if len(others) > 12:
+        if len(others - result.keys()) > 12:
             raise RuleError("В деле слишком много участников для одного запроса")
         for uid in others - result.keys():
             other = await self.discord.member(self.guild, uid)
@@ -178,7 +187,17 @@ class Application:
                     f"**{FAMILIES[player['family']]}**\nЛичные деньги: {player['money']}\n"
                     f"Касса: {family['money']}\nВлияние: {family['influence']}\n"
                     f"Всего влияния: {family['earned']}\nГлава: <@{family['leader']}>\n"
-                    f"Подозрение (до снижения за чистые недели): {player['suspicion']}"
+                    f"Подозрение (до снижения за чистые недели): {player['suspicion']}\n"
+                    + restriction(player, time.time())
+                    + "\nВаши незавершённые покушения: "
+                    + (
+                        ", ".join(
+                            pid
+                            for pid, p in state.get("plots", {}).items()
+                            if p["organizer"] == actor and p["status"] == "open"
+                        )
+                        or "нет"
+                    )
                 )
             lines = []
             for bid, b in state["bribes"].items():

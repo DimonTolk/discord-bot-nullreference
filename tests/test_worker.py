@@ -30,7 +30,7 @@ def payload(name="work", options=None, permissions="0"):
 
 def test_manifest_and_server_side_admin_checks():
     commands = manifest()
-    assert len(commands) == 36
+    assert len(commands) == 44
     assert "join" not in {c["name"] for c in commands}
     assert all(not any(k.startswith("_") for k in c) for c in commands)
     for name in ADMIN_COMMANDS:

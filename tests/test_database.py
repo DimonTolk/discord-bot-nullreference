@@ -30,6 +30,7 @@ pytestmark = pytest.mark.skipif(
 def test_casino_concurrent_start_settlement_and_replay():
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
     async def scenario():
         sys.path.insert(0, str(ROOT / "scripts"))
         from migrate import migrate
@@ -41,18 +42,23 @@ def test_casino_concurrent_start_settlement_and_replay():
         guild, season = "998", f"casino-{uuid.uuid4()}"
 
         async def act(request, action, **kwargs):
-            return await db.execute(guild, season, theme, "1", request, action,
-                                    identities={"1": "mafia"}, **kwargs)
+            return await db.execute(
+                guild, season, theme, "1", request, action, identities={"1": "mafia"}, **kwargs
+            )
 
         await act("work", "work")  # Personal wallet:29, treasury:0.
-        starts = await asyncio.gather(act("start1", "blackjack", amount=20),
-                                      act("start2", "blackjack", amount=20),
-                                      return_exceptions=True)
+        starts = await asyncio.gather(
+            act("start1", "blackjack", amount=20),
+            act("start2", "blackjack", amount=20),
+            return_exceptions=True,
+        )
         assert sum(isinstance(x, dict) for x in starts) == 1
         assert sum(isinstance(x, RuleError) for x in starts) == 1
         hand = next(x for x in starts if isinstance(x, dict))["hand"]["id"]
-        await asyncio.gather(act("stand1", "blackjack_move", hand=hand, revision=0, decision="stand"),
-                             act("stand2", "blackjack_move", hand=hand, revision=0, decision="stand"))
+        await asyncio.gather(
+            act("stand1", "blackjack_move", hand=hand, revision=0, decision="stand"),
+            act("stand2", "blackjack_move", hand=hand, revision=0, decision="stand"),
+        )
         state = await db.snapshot(guild, season, theme)
         assert state["players"]["1"]["money"] == 29  # Tie, one refund only.
         assert state["players"]["1"]["casino_usage"]["count"] == 1
@@ -62,6 +68,69 @@ def test_casino_concurrent_start_settlement_and_replay():
         assert state["players"]["1"]["money"] == 39
         assert state["players"]["1"]["casino_usage"]["count"] == 2
         assert state["families"]["mafia"]["money"] == 0
+
+    asyncio.run(scenario())
+
+
+def test_plot_leak_replay_and_concurrent_family_arrests():
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    async def scenario():
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from migrate import migrate
+
+        url = os.environ["TEST_DATABASE_URL"]
+        await asyncio.to_thread(migrate, url)
+        sql = PostgresSQL(url)
+        db, theme = Database(sql), MafiaSeason(roll=lambda n: 0)
+        guild, season = "997", f"plots-{uuid.uuid4()}"
+        identities = {
+            "1": "mafia",
+            "2": "mafia",
+            "3": "police",
+            "4": "cartel",
+            "5": "cartel",
+            "6": "mafia",
+        }
+
+        async def act(actor, request, action, **kwargs):
+            return await db.execute(
+                guild, season, theme, actor, request, action, identities=identities, **kwargs
+            )
+
+        await act(
+            "0", "fund", "reward", family="mafia", influence=0, money=200, reference="test-funding"
+        )
+        started = await act("1", "plot", "plot_start", target="4")
+        pid = started["values"]["id"]
+        joined = await asyncio.gather(
+            act("2", "join", "plot_join", plot=pid), act("2", "join", "plot_join", plot=pid)
+        )
+        assert joined[0] == joined[1]
+        rows = await sql.query(
+            "SELECT text_key,payload FROM news_outbox WHERE guild_id=$1 AND season_id=$2",
+            [guild, season],
+        )
+        assert len(rows) == 1 and rows[0]["text_key"] == "news_plot_named"
+        assert rows[0]["payload"] == {"target": "<@4>", "organizer": "<@1>"}
+        await act("6", "join2", "plot_join", plot=pid)
+        state = await db.snapshot(guild, season, theme)
+        assert state["clues"]["mafia"] == 6
+        arrests = await asyncio.gather(
+            act("3", "arrest1", "arrest", member="2"),
+            act("3", "arrest2", "arrest", member="6"),
+            return_exceptions=True,
+        )
+        assert sum(isinstance(x, dict) for x in arrests) == 1
+        assert sum(isinstance(x, RuleError) for x in arrests) == 1
+        state = await db.snapshot(guild, season, theme)
+        assert state["clues"]["mafia"] == 2
+        assert sum(p.get("jail_family") == "mafia" for p in state["players"].values()) == 1
+        rows = await sql.query(
+            "SELECT text_key FROM news_outbox WHERE guild_id=$1 AND season_id=$2", [guild, season]
+        )
+        assert [r["text_key"] for r in rows].count("news_arrest") == 1
 
     asyncio.run(scenario())
 

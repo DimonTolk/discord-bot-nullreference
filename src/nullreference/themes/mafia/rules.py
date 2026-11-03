@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from nullreference.core.theme import RuleError
 from .casino import MafiaCasino
+from .underworld import MafiaUnderworld, available, restriction
 
 DAY = 86400
 FAMILIES = {
@@ -36,6 +37,7 @@ class MafiaSeason:
     def __init__(self, roll=None):
         self.roll = roll or secrets.randbelow
         self.casino = MafiaCasino(self.roll)
+        self.underworld = MafiaUnderworld(self)
 
     def initial_state(self):
         return {
@@ -62,9 +64,56 @@ class MafiaSeason:
 
     def apply(self, state, actor, action, now, **args):
         self.expire(state, now)
+        if action not in {
+            "sync",
+            "tick",
+            "blackjack_table",
+            "plot_status",
+            "evidence",
+            "leader_set",
+            "reward",
+            "district_open",
+        }:
+            player = self.player(state, actor)
+            require(
+                available(player, now),
+                restriction(player, now) + "\nИгровые действия временно недоступны",
+            )
         handler = getattr(self, f"do_{action}", None)
         require(handler is not None, "Неизвестное действие")
         return handler(state, actor, now, **args)
+
+    def do_plot_start(self, s, actor, now, target):
+        return self.underworld.start(s, actor, now, target)
+
+    def do_plot_join(self, s, actor, now, plot):
+        return self.underworld.join(s, actor, now, plot)
+
+    def do_plot_status(self, s, actor, now, plot):
+        return self.underworld.status(s, actor, now, plot)
+
+    def do_plot_resolve(self, s, actor, now, plot):
+        return self.underworld.resolve(s, actor, now, plot)
+
+    def do_arrest(self, s, actor, now, member):
+        return self.underworld.arrest(s, actor, now, member)
+
+    def do_bail(self, s, actor, now, member):
+        return self.underworld.bail(s, actor, now, member)
+
+    def do_cooperate(self, s, actor, now, family):
+        return self.underworld.cooperate(s, actor, now, family)
+
+    def do_evidence(self, s, actor, now):
+        require(self.player(s, actor)["family"] == "police", "Доступно только полиции")
+        return reply(
+            "evidence",
+            clues="\n".join(
+                f"{name}: {s['clues'].get(key, 0)}"
+                for key, name in FAMILIES.items()
+                if key != "police"
+            ),
+        )
 
     def do_slots(self, s, actor, now, amount):
         return self.casino.slots(self, s, actor, now, amount)
@@ -117,6 +166,7 @@ class MafiaSeason:
     def officer(self, s, actor, now):
         p = self.player(s, actor)
         require(p["family"] == "police", "Действие доступно только полиции")
+        require(available(p, now), restriction(p, now))
         require(p.get("suspended", 0) <= now, "Вы временно отстранены")
         elapsed = int((now - p.get("clean_since", now)) // (7 * DAY))
         if elapsed:
@@ -163,6 +213,12 @@ class MafiaSeason:
                 for o in s["operations"].values():
                     if o["status"] == "open" and o["family"] != family:
                         o["members"] = [uid for uid in o["members"] if uid != actor]
+                for plot in s.get("plots", {}).values():
+                    if plot["status"] == "open" and plot["family"] != family:
+                        if plot["organizer"] == actor:
+                            plot["status"] = "cancelled"
+                        else:
+                            plot["members"] = [uid for uid in plot["members"] if uid != actor]
                 p["family"] = family
             if family is not None and s["families"][family]["leader"] is None:
                 s["families"][family]["leader"] = actor
@@ -235,7 +291,7 @@ class MafiaSeason:
             "raid": None,
             "response": None,
         }
-        s["clues"][p["family"]] = min(3, s["clues"].get(p["family"], 0) + 2)
+        s["clues"][p["family"]] = s["clues"].get(p["family"], 0) + 2
         return reply("operation_started", id=oid)
 
     def operation(self, s, oid):
@@ -259,6 +315,7 @@ class MafiaSeason:
         require(now >= o["until"], "Дело ещё не завершилось")
         raid = o["raid"]
         require(not raid or o["response"] or now >= raid["until"], "Ожидается решение об облаве")
+        o["members"] = [uid for uid in o["members"] if available(s["players"][uid], now)]
         count = len(o["members"])
         success = count >= 2 and self.roll(100) < 60 + 10 * o["prepared"] + 5 * (count >= 3)
         if o["response"] == "cancel":
@@ -303,7 +360,7 @@ class MafiaSeason:
             "Нет открытого дела для проверки",
         )
         s["police_actions"][w] = used + 1
-        s["clues"][family] = min(3, s["clues"].get(family, 0) + 1)
+        s["clues"][family] = s["clues"].get(family, 0) + 1
         return reply("investigated", clues=s["clues"][family], remaining=2 - used)
 
     def do_raid(self, s, actor, now, operation):
@@ -315,7 +372,7 @@ class MafiaSeason:
         require(
             s["raid_cooldowns"].get(o["family"], 0) <= now, "Семья защищена от повторной облавы"
         )
-        s["clues"][o["family"]] = 0
+        s["clues"][o["family"]] -= 3
         s["raid_cooldowns"][o["family"]] = now + 7 * DAY
         o["raid"] = {"officer": actor, "until": now + DAY, "evidence": False}
         self.earn(s, "police", 2, now)
@@ -393,7 +450,7 @@ class MafiaSeason:
             s["players"][b["sender"]]["money"] += b["amount"]
             if decision == "evidence" and not o["raid"]["evidence"]:
                 o["raid"]["evidence"] = True
-                s["clues"][o["family"]] = min(3, s["clues"].get(o["family"], 0) + 1)
+                s["clues"][o["family"]] = s["clues"].get(o["family"], 0) + 1
         b["status"] = decision
         return result
 
