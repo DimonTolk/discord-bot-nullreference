@@ -173,7 +173,7 @@ def render(result):
         + f"\nДилер: {dealer}"
         + ("" if active else f" — **{total(result['dealer'])}**")
         + (
-            f"\nЕщё или вскрыться? Срок: <t:{int(h['until'])}:f>."
+            f"\nЕщё или открываемся? Срок: <t:{int(h['until'])}:f>."
             if active
             else f"\n{h['outcome']}\nВыплата: {h['payout']}"
         )
@@ -186,6 +186,6 @@ def render(result):
             "label": label,
             "custom_id": f"blackjack:{result['owner']}:{h['id']}:{h['revision']}:{action}",
         }
-        for action, label in (("hit", "🃏 Ещё"), ("stand", "✋ Вскрыться"))
+        for action, label in (("hit", "🃏 Ещё"), ("stand", "✋ Открываемся!"))
     ]
     return {"content": text, "components": [{"type": 1, "components": buttons}] if active else []}
