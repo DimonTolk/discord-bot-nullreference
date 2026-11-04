@@ -71,20 +71,44 @@ def test_bad_bets_do_not_touch_wallet_quota_or_family(action, amount):
 
 
 def test_shared_quota_daily_reset_and_role_change():
-    theme, state = game([0] * 30)
+    theme, state = game([0] * 45)
     for _ in range(4):
         act(theme, state, "slots", amount=5)
+    for _ in range(5):
+        act(theme, state, "roulette", amount=5, bet="number", number=0)
     act(theme, state, "blackjack", amount=10)  # Four aces: active hand.
     with pytest.raises(RuleError, match="активная"):
         act(theme, state, "blackjack", amount=10)
     act(theme, state, "blackjack_table")
-    with pytest.raises(RuleError, match="5 игр"):
+    with pytest.raises(RuleError, match="10 игр"):
         act(theme, state, "slots", amount=5)
     theme.sync_members(state, {"1": "cartel"}, NOW)
-    with pytest.raises(RuleError, match="5 игр"):
+    with pytest.raises(RuleError, match="10 игр"):
         act(theme, state, "slots", amount=5)
     act(theme, state, "slots", now=(NOW // 86400 + 1) * 86400, amount=5)
     assert state["players"]["1"]["casino_usage"]["count"] == 1
+
+
+@pytest.mark.parametrize(
+    "bet,number,wins",
+    [
+        ("red", None, 18),
+        ("black", None, 18),
+        ("even", None, 18),
+        ("odd", None, 18),
+        ("number", 0, 1),
+    ],
+)
+def test_roulette_payouts_across_the_wheel(bet, number, wins):
+    payouts = []
+    for drawn in range(37):
+        theme, state = game([drawn])
+        result = act(theme, state, "roulette", amount=5, bet=bet, number=number)
+        payouts.append(result["payout"])
+        if drawn == 0:
+            assert result["payout"] == (180 if bet == "number" else 0)
+    assert sum(payout > 0 for payout in payouts) == wins
+    assert sum(payouts) == 180
 
 
 def test_blackjack_hidden_card_buttons_and_repeated_clicks():
@@ -108,13 +132,13 @@ def test_blackjack_hidden_card_buttons_and_repeated_clicks():
 
 def test_daily_quota_boundary_and_legacy_weekly_state():
     midnight = (NOW // 86400 + 1) * 86400
-    theme, state = game([0] * 21)
+    theme, state = game([0] * 36)
     player = state["players"]["1"]
     player["casino_usage"] = {"week": "2026-45", "count": 5}
     # Switching to daily quotas starts a fresh daily counter once.
-    for _ in range(5):
+    for _ in range(10):
         act(theme, state, "slots", now=midnight - 1, amount=5)
-    with pytest.raises(RuleError, match="5 игр в день"):
+    with pytest.raises(RuleError, match="10 игр в день"):
         act(theme, state, "slots", now=midnight - 1, amount=5)
     act(theme, state, "slots", now=midnight, amount=5)
     usage = state["players"]["1"]["casino_usage"]

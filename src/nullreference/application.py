@@ -140,7 +140,7 @@ class Application:
         name = payload["data"]["name"]
         authorize(payload, name)
         args = parse_options(payload, name)
-        if name in {"slots", "blackjack", "blackjack_table"}:
+        if name in {"slots", "roulette", "blackjack", "blackjack_table"}:
             await self.casino_channel(payload)
             return {
                 **render_casino(await self.act(payload, name, args)),

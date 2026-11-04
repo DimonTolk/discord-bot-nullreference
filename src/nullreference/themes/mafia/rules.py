@@ -133,6 +133,9 @@ class MafiaSeason:
             ),
         )
 
+    def do_roulette(self, s, actor, now, amount, bet, number=None):
+        return self.casino.roulette(self, s, actor, now, amount, bet, number)
+
     def do_slots(self, s, actor, now, amount):
         return self.casino.slots(self, s, actor, now, amount)
 

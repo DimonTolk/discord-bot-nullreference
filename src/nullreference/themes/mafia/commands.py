@@ -3,6 +3,7 @@
 from nullreference.core.theme import RuleError
 from .rules import FAMILIES, DISTRICTS
 from .help import TOPICS
+from .casino import ROULETTE_BETS
 from .night_shift import ROUTES, RISKS, TASKS, TACTICS
 
 
@@ -98,13 +99,20 @@ COMMANDS = [
     command("inbox", "Личные конверты и предложения передачи районов"),
     command(
         "slots",
-        "Слоты: личная ставка 5–20, общий лимит казино 5 игр в день",
+        "Слоты: личная ставка 5–20, общий лимит казино 10 игр в день",
         option("amount", "Личная ставка", 4, min_value=5, max_value=20),
     ),
     command(
         "blackjack",
         "Начать блэкджек: личная ставка от 10",
         option("amount", "Личная ставка", 4, min_value=10, max_value=2**53 - 1),
+    ),
+    command(
+        "roulette",
+        "Европейская рулетка на личные деньги",
+        option("amount", "Ставка", 4, min_value=5, max_value=20),
+        option("bet", "Вид ставки", choices=ROULETTE_BETS),
+        option("number", "Число для ставки number", 4, False, min_value=0, max_value=36),
     ),
     command("blackjack_table", "Показать свою раздачу и кнопки, без новой ставки"),
     command(

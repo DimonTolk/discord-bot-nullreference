@@ -3,6 +3,7 @@
 PUBLIC_COMMANDS = frozenset(
     {
         "slots",
+        "roulette",
         "blackjack",
         "blackjack_table",
         "start",

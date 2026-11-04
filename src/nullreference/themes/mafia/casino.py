@@ -4,6 +4,16 @@ from datetime import datetime, timezone
 
 from nullreference.core.theme import RuleError
 
+DAILY_LIMIT = 10
+RED_NUMBERS = frozenset({1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36})
+ROULETTE_BETS = {
+    "red": "Красное",
+    "black": "Чёрное",
+    "even": "Чёт",
+    "odd": "Нечёт",
+    "number": "Число",
+}
+
 SYMBOLS = ("🍒", "🍋", "🔔", "💎")
 SUITS = ("♠️", "♥️", "♦️", "♣️")
 RANKS = ("A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
@@ -53,7 +63,10 @@ class MafiaCasino:
         if usage.get("day") != key:
             usage.clear()
             usage.update(day=key, count=0)
-        check(usage["count"] < 5, "Лимит казино: 5 игр в день. Сброс ежедневно в 00:00 UTC")
+        check(
+            usage["count"] < DAILY_LIMIT,
+            f"Лимит казино: {DAILY_LIMIT} игр в день. Сброс в 00:00 UTC",
+        )
         usage["count"] += 1
 
     def slots(self, season, state, actor, now, amount):
@@ -71,6 +84,35 @@ class MafiaCasino:
             "payout": payout,
             "money": p["money"],
             "used": p["casino_usage"]["count"],
+        }
+
+    def roulette(self, season, state, actor, now, amount, bet, number=None):
+        check(bet in ROULETTE_BETS, "Выберите вид ставки")
+        if bet == "number":
+            check(type(number) is int and 0 <= number <= 36, "Укажите число от 0 до 36")
+        else:
+            check(number is None, "Число указывается только для ставки на число")
+        player = season.player(state, actor)
+        self.bet(player, amount, 5, 20)
+        self.allowance(player, now)
+        drawn = self.roll(37)
+        color = "🟢" if drawn == 0 else "🔴" if drawn in RED_NUMBERS else "⚫"
+        parity = "even" if drawn % 2 == 0 else "odd"
+        winning_bets = ("red" if drawn in RED_NUMBERS else "black", parity)
+        if bet == "number":
+            payout = amount * 36 if drawn == number else 0
+        else:
+            payout = amount * 2 if drawn != 0 and bet in winning_bets else 0
+        player["money"] += payout - amount
+        return {
+            "casino": "roulette",
+            "number": drawn,
+            "color": color,
+            "choice": str(number) if bet == "number" else ROULETTE_BETS[bet],
+            "bet": amount,
+            "payout": payout,
+            "money": player["money"],
+            "used": player["casino_usage"]["count"],
         }
 
     def start(self, season, state, actor, now, amount):
@@ -161,7 +203,14 @@ def render(result):
             + " │ ".join(SYMBOLS[i] for i in result["reels"])
             + f"\nСтавка: {result['bet']} · Выплата: {result['payout']}"
             + ("\n🎉 Выигрыш!" if result["payout"] else "\n💨 В этот раз без выигрыша.")
-            + f"\nЛичные деньги: {result['money']} · Игр сегодня: {result['used']}/5"
+            + f"\nЛичные деньги: {result['money']} · Игр сегодня: {result['used']}/{DAILY_LIMIT}"
+        )
+        return {"content": text, "components": []}
+    if result["casino"] == "roulette":
+        text = (
+            f"## 🎡 Рулетка\nВыпало {result['color']} **{result['number']}**"
+            f"\nВыбор: {result['choice']} · Ставка: {result['bet']} · Выплата: {result['payout']}"
+            f"\nЛичные деньги: {result['money']} · Игр сегодня: {result['used']}/{DAILY_LIMIT}"
         )
         return {"content": text, "components": []}
     h = result["hand"]
