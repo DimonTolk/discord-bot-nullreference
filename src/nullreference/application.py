@@ -255,7 +255,7 @@ class Application:
                 offer = other.get("fixer_offer")
                 if not offer or offer["until"] <= time.time():
                     continue
-                mode = "по 18 гарантированно" if offer["mode"] == "safe" else "70% на 30 каждому"
+                mode = "по 18 гарантированно" if offer["mode"] == "safe" else "70% на 40 каждому"
                 if offer["member"] == actor:
                     lines.append(
                         f"Сделка №{offer['id']} от <@{uid}> ({mode}), до <t:{int(offer['until'])}:f>. "

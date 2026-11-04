@@ -147,7 +147,7 @@ COMMANDS = [
         option(
             "mode",
             "Условия сделки",
-            choices={"safe": "Надёжно · по 18", "premium": "Дороже · 70% на 30 каждому"},
+            choices={"safe": "Надёжно · по 18", "premium": "Дороже · 70% на 40 каждому"},
         ),
     ),
     command(

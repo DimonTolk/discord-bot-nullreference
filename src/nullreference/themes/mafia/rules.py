@@ -311,7 +311,7 @@ class MafiaSeason:
         self.player(s, organizer)
         require(available(sender, now), "Организатор сейчас недоступен")
         self.take_gig_attempt(self.player(s, actor), now)
-        amount = 18 if offer["mode"] == "safe" else (30 if self.roll(100) >= 30 else 0)
+        amount = 18 if offer["mode"] == "safe" else (40 if self.roll(100) >= 30 else 0)
         sender["money"] += amount
         s["players"][actor]["money"] += amount
         del sender["fixer_offer"]
