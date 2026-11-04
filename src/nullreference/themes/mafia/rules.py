@@ -280,7 +280,7 @@ class MafiaSeason:
         sale = player.get("resale")
         require(sale, "У вас нет товара на перепродажу")
         require(now >= sale["ready"], f"Продажа доступна <t:{int(sale['ready'])}:R>")
-        amount = 30 if sale["market"] == "trusted" else (50 if self.roll(100) < 65 else 10)
+        amount = 35 if sale["market"] == "trusted" else (50 if self.roll(100) < 65 else 10)
         player["money"] += amount
         del player["resale"]
         return reply("resell_result", amount=amount, profit=amount - 20, balance=player["money"])
