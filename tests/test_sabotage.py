@@ -120,7 +120,7 @@ def test_transfer_is_bounded_conserves_available_influence_and_can_benefit_ally(
     assert s["families"]["yakuza"]["influence"] == expected
     assert s["families"]["yakuza"]["earned"] == expected
     assert s["families"]["cartel"]["earned"] == 25
-    assert result["news"]["values"] == {"beneficiary": "Якудза", "amount": expected}
+    assert result["news"]["values"] == {"amount": expected}
     assert "<@1>" not in str(result["news"])
     before = deepcopy(s)
     with pytest.raises(RuleError):
@@ -192,7 +192,7 @@ def test_catalog_has_ten_distinct_success_and_failure_stories_per_family():
             for index in range(1, 11):
                 key = f"news_sabotage_{family}_{outcome}_{index:02d}"
                 values = (
-                    {"amount": 4, "beneficiary": "Мафия"}
+                    {"amount": 4}
                     if outcome == "success"
                     else {"exposure": "Организаторы остались неизвестны."}
                 )

@@ -25,7 +25,16 @@ class FlavourCatalog:
             "SELECT value FROM flavour_overrides WHERE guild_id=$1 AND season_id=$2 AND key=$3",
             [self.guild, self.season, key],
         )
-        return rows[0]["value"] if rows else self.defaults[key]
+        if rows:
+            value = rows[0]["value"]
+            # Old public sabotage overrides may contain the now-private beneficiary.
+            if not (
+                key.startswith("news_sabotage_")
+                and "_success_" in key
+                and "beneficiary" in Template(value).get_identifiers()
+            ):
+                return value
+        return self.defaults[key]
 
     async def render(self, key, **values):
         return Template(await self.get(key)).substitute(**values)[:2000]

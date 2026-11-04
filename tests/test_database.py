@@ -194,7 +194,7 @@ def test_sealed_sabotage_concurrent_transfers_do_not_overdraw_or_duplicate_news(
             [guild, season],
         )
         assert len(news) == 2 and sum(row["payload"]["amount"] for row in news) == 5
-        assert all(set(row["payload"]) == {"beneficiary", "amount"} for row in news)
+        assert all(set(row["payload"]) == {"amount"} for row in news)
 
     asyncio.run(scenario())
 

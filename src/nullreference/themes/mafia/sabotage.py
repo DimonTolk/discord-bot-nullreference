@@ -146,10 +146,6 @@ class MafiaSabotage:
         variant = t.roll(10) + 1
         suffix = "success" if success else "failure"
         key = f"news_sabotage_{op['target']}_{suffix}_{variant:02d}"
-        values = (
-            {"beneficiary": FAMILIES[op["beneficiary"]], "amount": amount}
-            if success
-            else {"exposure": exposure}
-        )
+        values = {"amount": amount} if success else {"exposure": exposure}
         result["news"] = {"key": key, "values": values}
         return result
