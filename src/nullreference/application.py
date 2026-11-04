@@ -48,6 +48,10 @@ class Application:
             raise RuleError("Участник покинул сервер")
         result = {actor: self.membership.resolve(member["roles"], bindings)}
         others = set()
+        if name == "fixer":
+            others.add(args["member"])
+        if name == "fixer_accept":
+            others.add(args["organizer"])
         if name in {"plot_start", "arrest"}:
             others.add(args["target"] if name == "plot_start" else args["member"])
         if name == "plot_resolve":
@@ -244,6 +248,23 @@ class Application:
                     )
                 )
             lines = []
+            sale = player.get("resale")
+            if sale:
+                lines.append(f"Перепродажа: /resell_collect доступна с <t:{int(sale['ready'])}:f>.")
+            for uid, other in state["players"].items():
+                offer = other.get("fixer_offer")
+                if not offer or offer["until"] <= time.time():
+                    continue
+                mode = "по 18 гарантированно" if offer["mode"] == "safe" else "70% на 30 каждому"
+                if offer["member"] == actor:
+                    lines.append(
+                        f"Сделка №{offer['id']} от <@{uid}> ({mode}), до <t:{int(offer['until'])}:f>. "
+                        f"Принять: `/fixer_accept organizer:@игрок deal:{offer['id']}`."
+                    )
+                elif uid == actor:
+                    lines.append(
+                        f"Ваша сделка №{offer['id']} для <@{offer['member']}> ожидает ответа."
+                    )
             for bid, b in state["bribes"].items():
                 if (
                     b["status"] == "pending"

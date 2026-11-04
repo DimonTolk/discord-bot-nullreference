@@ -245,6 +245,75 @@ class MafiaSeason:
         self.player(s, actor)
         return {"ok": True}
 
+    def take_gig_attempt(self, player, now):
+        day = int(now // DAY)
+        current_week = week(now)
+        previous = player.get("gig_usage", {})
+        require(previous.get("day") != day, "Сегодня вы уже брали подработку")
+        count = previous.get("count", 0) if previous.get("week") == current_week else 0
+        require(count < 3, "На этой неделе уже использованы три подработки")
+        player["gig_usage"] = {"day": day, "week": current_week, "count": count + 1}
+
+    def do_courier(self, s, actor, now, mode):
+        require(mode in ("regular", "rush"), "Выберите вид доставки")
+        player = self.player(s, actor)
+        self.take_gig_attempt(player, now)
+        amount = 12 if mode == "regular" else (30 if self.roll(100) >= 25 else 0)
+        player["money"] += amount
+        return reply("courier_result", amount=amount, balance=player["money"])
+
+    def do_resell(self, s, actor, now, market):
+        require(market in ("trusted", "black"), "Выберите покупателя")
+        player = self.player(s, actor)
+        require(not player.get("resale"), "Сначала завершите продажу через /resell_collect")
+        require(player["money"] >= 20, "Для закупки нужно 20 личных денег")
+        self.take_gig_attempt(player, now)
+        self.spend(player, "money", 20)
+        player["resale"] = {"market": market, "ready": now + 6 * 3600}
+        return reply("resell_started", ready=int(player["resale"]["ready"]))
+
+    def do_resell_collect(self, s, actor, now):
+        player = self.player(s, actor)
+        sale = player.get("resale")
+        require(sale, "У вас нет товара на перепродажу")
+        require(now >= sale["ready"], f"Продажа доступна <t:{int(sale['ready'])}:R>")
+        amount = 30 if sale["market"] == "trusted" else (50 if self.roll(100) < 65 else 10)
+        player["money"] += amount
+        del player["resale"]
+        return reply("resell_result", amount=amount, profit=amount - 20, balance=player["money"])
+
+    def do_fixer(self, s, actor, now, member, mode):
+        require(mode in ("safe", "premium"), "Выберите условия сделки")
+        require(actor != member, "Выберите другого игрока")
+        partner = self.player(s, member)
+        require(available(partner, now), "Напарник сейчас недоступен")
+        player = self.player(s, actor)
+        require(
+            player.get("fixer_offer", {}).get("until", 0) <= now,
+            "Ваша предыдущая сделка ещё ожидает ответа",
+        )
+        self.take_gig_attempt(player, now)
+        deal = self.identifier(s)
+        until = now + 12 * 3600
+        player["fixer_offer"] = {"id": deal, "member": member, "mode": mode, "until": until}
+        return reply("fixer_offered", deal=deal, member=member, until=int(until))
+
+    def do_fixer_accept(self, s, actor, now, deal, organizer):
+        sender = s["players"].get(organizer, {})
+        offer = sender.get("fixer_offer", {})
+        require(
+            offer.get("id") == deal and offer.get("member") == actor and offer["until"] > now,
+            "Сделка недоступна",
+        )
+        self.player(s, organizer)
+        require(available(sender, now), "Организатор сейчас недоступен")
+        self.take_gig_attempt(self.player(s, actor), now)
+        amount = 18 if offer["mode"] == "safe" else (30 if self.roll(100) >= 30 else 0)
+        sender["money"] += amount
+        s["players"][actor]["money"] += amount
+        del sender["fixer_offer"]
+        return reply("fixer_result", amount=amount)
+
     def do_work(self, s, actor, now):
         p = self.player(s, actor)
         date = datetime.fromtimestamp(now, timezone.utc).date().isoformat()

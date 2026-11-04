@@ -113,6 +113,41 @@ COMMANDS = [
         option("channel", "Канал казино", 7, channel_types=[0]),
         admin=True,
     ),
+    command(
+        "courier",
+        "Доставка за личную оплату",
+        option(
+            "mode",
+            "Вид доставки",
+            choices={"regular": "Обычная · 12", "rush": "Срочная · 75% на 30"},
+        ),
+    ),
+    command(
+        "resell",
+        "Купить товар за 20 и продать через 6 часов",
+        option(
+            "market",
+            "Покупатель",
+            choices={"trusted": "Проверенный · 30", "black": "Чёрный рынок · 65% на 50"},
+        ),
+    ),
+    command("resell_collect", "Продать купленный товар и получить деньги"),
+    command(
+        "fixer",
+        "Предложить совместную сделку другому игроку",
+        option("member", "Напарник", 6),
+        option(
+            "mode",
+            "Условия сделки",
+            choices={"safe": "Надёжно · по 18", "premium": "Дороже · 70% на 30 каждому"},
+        ),
+    ),
+    command(
+        "fixer_accept",
+        "Принять адресованную вам сделку",
+        option("organizer", "Кто предложил сделку", 6),
+        option("deal", "Номер сделки из /inbox", max_length=20),
+    ),
     command("work", "Подработка: 20–30 денег, три раза в неделю"),
     command(
         "donate",

@@ -165,5 +165,10 @@
   "night_resolved": "🌃 Ночная смена №$id: $outcome. В кассу: $money; влияние: $influence; каждому подготовленному участнику: $personal.",
   "news_night_started": "## 📰 Lost Reference Times\nСемья $family собирает бригаду для «Ночной смены» №$id. Маршрут неизвестен. Участие: `/operation_join operation:$id`, затем задача в `/operation_board`.",
   "news_night_result": "## 📰 Lost Reference Times · Ночная смена\nСемья $family завершила дело №$id. Груз: $risk. Маршрут: $route.\n$outcome.\nВ кассу поступило $money, изменение заработанного влияния: +$influence.",
-  "news_night_intercept": "## 🚧 Lost Reference Times · Срочный выпуск\nГруз по делу №$id попал в полицейский заслон. До <t:$until:f> стороны выбирают тактику. Главе семьи и назначенному полицейскому: `/operation_board operation:$id`. Маршруты и решения пока не разглашаются."
+  "news_night_intercept": "## 🚧 Lost Reference Times · Срочный выпуск\nГруз по делу №$id попал в полицейский заслон. До <t:$until:f> стороны выбирают тактику. Главе семьи и назначенному полицейскому: `/operation_board operation:$id`. Маршруты и решения пока не разглашаются.",
+  "courier_result": "📦 Доставка завершена. Оплата: $amount. В кошельке: $balance.",
+  "resell_started": "📦 Товар куплен за 20. Заберите выручку через /resell_collect, начиная с <t:$ready:f>. Срока окончания нет.",
+  "resell_result": "💵 Товар продан за $amount. Чистый результат с учётом закупки: $profit. В кошельке: $balance.",
+  "fixer_offered": "🤝 Сделка №$deal для <@$member> открыта до <t:$until:f>. Передайте напарнику номер или попросите проверить /inbox.",
+  "fixer_result": "🤝 Сделка завершена. Оплата каждому: $amount. Если выплата 0, клиент отказался."
 }
